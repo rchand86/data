@@ -1,0 +1,156 @@
+ 
+
++ 64        10 Jan  Wed
+-130        11 Jan  Thurs   -->> wait for 15 min candle for top ka top
+								 * Sell call on VWAP -> 10 EMA + VWAP should be up to candle
+								 * If candle/price in b/w  VWAP + 10 EMA  the price can go both the direction.
+									- If price cut the VWAP it can go up
+									- If price cut 10EMA the price can go down
+								 * 
+-18         12 Jan  Friday  -->> * Dont Trade on mid after 12 with VWAP 								 
+								 
+-10         15 Jan Monday   -->> * 2-4 trade only on 9:30								 
+
+-14         16 Jan Tuesday  -->> * 15 min candel up/down with Trend								 
+								 
+
+-----------------------------------
+
+down trend price below 9ema and one red marubozo below 9 ema come then sell 
+10.05  -> 9.3
+8.45
+------------------------------------------------------------------------------------------------
+
+NPS   ============================== 
+5000   
+
+BOB Loan============================      
+35000 EMI 
+15000 EMI-2
+------------------- 50000  
+
+HDFC ===============================      
+Fee      +     13500   
+SIP      +     24000
+LIC-MF   +     9000  (LIC-All-7000 + Medical-2000)
+------------------- 47000 + extra next month 1000 for LIC/MOnth wali
+
+ICICI
+18000 House Dixa           ========= 
+7000 Elec                  =========
+10000 Committee            =========
+------------------ 30000
+
+Credit - card-- from ICICI
+12000     HDFC           ===========      
+8000     ICICI Amazon   ============  
+    
+6000   ICICI 2        ============        
+2000     SBI            ============       
+
+======================================= 20000 need to transfer to BOB Adv
+
+BOB Saving ------------------------ 0
+BOB    20+20
+bob-1   10
+
+AO - 8,995
+Rocald: 8-9000
+
+14-feb
+margin : 2,38,691.72
+cash:  18,680.10    -->> 19,591.35 14 feb (1050.00)      209300 (9300 from my balance.)
+27-Feb
+2,37,414.67  margin
+27,243.70    cash
+2,10,170.97  Total collateral
+
+10 March
+31,553.30
+
+
+COl - 2,20,011.
+
+rules-engine
+block-sequence
+web
+
+-----------------------------------------------------------------------------------------------------------------
+
+LIC- 12%14 - MF -->> 4500 -->>  30Oct + 
+
+-------Total = 138000---------
+
+TV + Health =  70000 (40000) need to add to BOB Adv to adjust per month 
+
+Loan Distribution: 
+Angel : 1L   -->>  60K Transfer to Kite from 1L 
+Kite(Zerodha): 1L + 50K + 1.5L + 50K = 3.5L + 1L = 4.5 + 50K =  5L + 60(from Angel) -->> 5.6L Total (5-Oct-24) + 50K =  6.1L + 50K = 6.6L
+	Total INvestment - 8,84,094
+
+Neo: 50K + 10K
+
+Future: 1433 + 2781 + 1589 + 2100 + 1900 + 1800 + 1900 + 2500 + 1875 + 4500  =  2000
+2nd Future: 3200 + 8400 - 2000 + 1500 - 3700
+
+10000 to BOB from Angel ONe
+20000 to HDFC from Angel
+
+
+.85
+
+
+1400000----
+DIksha : 
+Daa
+
+12870600002119  - home loan
+
+12870600002735  - topup account
+
+12870100018688  - Janakpuri saving
+
+10380 -  13557 
+
+
+
+customer.care@sbigeneral.in	
+https://www.sbigeneral.in/changepolicydetails
+
+11-Dec 24----------------------------------------------
+Used margin	712.50
+Available cash	44,388.00
+
+57,928.74   after 42K added on 18 Nov 
+-->> after SUZLON Buy -->>   5,717.23 (debet)	52,034.51 
+-->>IRFC (14206)  -->>   on 18 Nov afer debet.  -->> 37800 base balance.    + 10000 (add)  = 47800
+
+SBI-  01496934
+
+SBI General Insurance Co. Ltd. ,5th Floor,World Trade Tower, Plot No. C-01,Sector-16, Noida - 201301
+
+
+
+UpdateMode = false , If true it wont update/insert new blocks from mainframe to 2.0 (BTA will not follow this condition so it will insert in 2.0)
+approved on to approved Off  = False  ---- If true then Only mainframe blocks will persist/(keep as it is in 2.0) in 2.0 other blocks in 2.0 will update as approved Off.
+
+HDFC 24277515117  24277514599
+
+
+07316627443 praSHANT PATEL  1037253
+
+
+
+Hotel Orange International 4300    11,176.04 (3,065)
+
+Hotel Sifat International 10,906.00
+
+Lords Plaza Surat 11,872.00
+
+
+last 2 days 4-5% high
+	-->> next day wait for gapup if yes then wait for previous day high break once break go for sell.
+last 2 days 4-5% low
+	-->> next day wait for down if yes then wait for previous day low break once break go for buy.
+
+

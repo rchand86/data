@@ -1,0 +1,151 @@
+Observer: 
+	public interface Subject{
+		public void register(Observer observer);
+		public void unRegister(Observer observer); //optional
+		public void publishMessage(Message message);	
+	}
+	public class PublishMessage1 implement Subject{  
+		private Set<Observer> obsers = new HashSet
+		public void register(Observer observer){
+			obs.add(observe)
+		}
+		public void unRegister(Observer observer){
+			obs.remove(observe)
+		}
+		public void publishMessage(Message message){
+			for(Observer obs: obsers){
+				obs.recieveMessage(message);
+			}
+		}	
+	}
+	public interface Observer{
+		public void recieveMessage(Message msg);		
+	}
+	public class FirstObserver implement Observer{  
+		public void recieveMessage(Message msg){
+			sot(message.getMessage())
+		}
+	}
+	
+	Message class final{
+	final String message;
+	getMessage()
+	public Message(String message)
+	this.message = message;
+	}
+	
+	Main Class:
+	FirstObserver first = new FirstObserver(); // second thirdl
+	PublishMessage1 publish = new PublishMessage1();
+	publish.resister(first)
+	publish.publishMessage(newMessage("Hello"));
+
+Facade----->>>>>                          The hotel interface only returns Menus. Similarly, the Restaurant are of three types and can implement the hotel interface.
+public interface Shape {
+   void draw();
+}
+public class Rectangle implements Shape {
+   @Override
+   public void draw() {
+      System.out.println("Rectangle::draw()");
+   }
+}
+
+public class ShapeMaker { 
+   private Shape rectangle;
+   
+   public ShapeMaker() {      
+      rectangle = new Rectangle();    
+   }  
+   public void drawRectangle(){
+      rectangle.draw();
+   }
+  FacadePatternDemo :Main Class
+  ShapeMaker shapeMaker = new ShapeMaker();
+  shapeMaker.drawRectangle();   
+
+Strategy -->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+interface PaymentStratgy{
+	void pay(int amount);
+}
+class paymentByCreditCard implements PaymentStratgy{
+	private CreditCard card;
+	public int pay(int amount){
+		card = new CreditCard();
+		card.setAmount(card.amount - amount);
+	}
+}
+class paymentByDebitCard implements PaymentStratgy{
+	private DebitCard card;
+	public int pay(int amount){
+		card = new DebitCard();
+		card.setAmount(card.amount - amount);
+	}
+}
+class PaymentService {            -->> context
+	private PaymentStratgy paymentStragy;
+	public PaymentService(PaymentStratgy paymentStragy){
+		this.paymentStragy = paymentStragy;
+	}
+	pubic void processPayment(int amount){
+		paymentStragy.pay(amount)
+	}
+}
+Main: 
+PaymentService paymentservice = new PaymentService(new paymentByCreditCard())
+paymentService.processPayment(100);
+
+Note: context doest not know how algo is executed.
+Apply the single resposibility and open/close principle.
+stratgy are easily interchange and replaceable by client at runtime.
+
+Adapter-->>
+
+Target Interface (Expected by Client):
+public interface WeightInPounds {
+    double getWeightInPounds();
+}
+
+2. Adaptee (Existing Incompatible Class):
+public class KilogramWeightMachine {
+    public double getWeightInKilograms() {        
+        return 70.0; // Simulating a weight reading in kilograms
+    }
+}
+
+3. Adapter (Bridging the Gap):
+public class KilogramToPoundAdapter implements WeightInPounds {
+    private KilogramWeightMachine machine;
+
+    public KilogramToPoundAdapter(KilogramWeightMachine machine) {
+        this.machine = machine;
+    }
+
+    @Override
+    public double getWeightInPounds() {
+        double weightInKg = machine.getWeightInKilograms();
+        // Conversion factor: 1 kg = 2.20462 pounds
+        return weightInKg * 2.20462;
+    }
+}
+
+4. Client (Using the Adapted Interface):
+public class WeightClient {
+    public static void main(String[] args) {
+        // Existing KilogramWeightMachine
+        KilogramWeightMachine kgMachine = new KilogramWeightMachine();
+
+        // Create the adapter to use the KilogramWeightMachine with the Pounds interface
+        WeightInPounds poundAdapter = new KilogramToPoundAdapter(kgMachine);
+
+        // Client expects weight in pounds and uses the adapter
+        double weight = poundAdapter.getWeightInPounds();
+        System.out.println("Weight in pounds: " + weight);
+    }
+}
+
+
+
+
+Factory: 
+Factory Method Design Pattern define an interface for creating an object, but let subclass decide which class to instantiate.

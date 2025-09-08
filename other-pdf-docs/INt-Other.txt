@@ -1,0 +1,2566 @@
+uses of volatile keyword:
+		 the volatile keyword is used to ensure visibility of variable/ 
+		 When a variable is declared volatile, any write to it by one thread is immediately visible to other threads.
+		 
+		 
+		private volatile boolean running = true;
+
+			public void run() {
+				while (running) {
+					// do work
+				}
+			}
+
+			public void stop() {
+				running = false;
+			}
+
+		Here, volatile ensures that when running = false, the run() method/thread sees the change immediately.
+		Limitations of volatile
+		It does not guarantee atomicity. For compound actions like count++
+		It’s suitable for simple flags 
+
+
+deadlock situation :
+					A deadlock in Java  is a situation where two or more threads are blocked forever, each waiting for the other to release a resource/Lock
+					
+					class A {
+					synchronized void methodA(B b) {
+						System.out.println("Thread1 starts execution of methodA");
+						try { Thread.sleep(100); } catch (InterruptedException e) {}
+						b.last(); // tries to call method in B
+					}
+
+					synchronized void last() {
+						System.out.println("Inside A.last()");
+					}
+				}
+
+				class B {
+					synchronized void methodB(A a) {
+						System.out.println("Thread2 starts execution of methodB");
+						try { Thread.sleep(100); } catch (InterruptedException e) {}
+						a.last(); // tries to call method in A
+					}
+
+					synchronized void last() {
+						System.out.println("Inside B.last()");
+					}
+				}
+
+				public class DeadlockDemo {
+					public static void main(String[] args) {
+						A a = new A();
+						B b = new B();
+
+						Thread t1 = new Thread(() -> a.methodA(b));
+						Thread t2 = new Thread(() -> b.methodB(a));
+
+						t1.start();
+						t2.start();
+					}
+				}
+
+				Application Freeze
+				Poor User Experience
+				Data Inconsistency -> If a deadlock occurs during a transaction, it may leave data in an inconsistent state.
+				
+HashMap vs IdentityHashMap
+					Key Comparison -->>	Uses .equals() method	  Uses == (reference equality)
+					Hashing Mechanism   Uses .hashCode()          Uses System.identityHashCode()
+					
+					
+		Map<String, String> map = new HashMap<>();
+		map.put(new String("key"), "value");
+		System.out.println(map.get("key"));  // Works because .equals() matches
+		
+		IdentityHashMap Example-->>		
+		Map<String, String> map = new IdentityHashMap<>();
+		map.put(new String("key"), "value");
+		System.out.println(map.get("key")); // ❌ Returns null because "key" != new String("key")
+		
+		When to Use IdentityHashMap -->>
+		When you want to difrenciate keys based on reference, not content.
+		Useful in scenarios like object graph traversal, caching, or serialization, where identity matters.
+		// like node value 5 in multi node then all 5 will be treated as diffrent value it can be possinbel in == not in .equals()
+		
+serialization in java?
+		In Java, serialization is the process of converting an object into a byte stream so that it can be easily sent over a network, or stored in memory.
+		
+		serialization in java?
+		public class Employee implements Serializable 
+		
+		Serialize the Object--
+		
+		Employee emp = new Employee(101, "Ravi");
+		FileOutputStream fos = new FileOutputStream("employee.ser");
+		ObjectOutputStream oos = new ObjectOutputStream(fos);
+		oos.writeObject(emp);
+		oos.close();
+		
+		Deserialize the Object-->>
+				
+		FileInputStream fis = new FileInputStream("employee.ser");
+		ObjectInputStream ois = new ObjectInputStream(fis);
+		Employee empRestored = (Employee) ois.readObject();
+		ois.close();
+	
+	Fields marked transient are not serialized.
+	Static fields are not serialized.
+	
+client one need xml and other one is Json response is it possible in rest API?
+		@GetMapping(value = "/employee", produces = { "application/json", "application/xml" }){
+		}				
+				
+		@JacksonXmlRootElement(localName = "Employee")
+		public class Employee {
+		}
+		
+		Clients specify the desired response format using the Accept header in the HTTP request:  
+		  Accept: application/json   Accept: application/xml
+		Example Request
+		Client 1 (JSON):  -->> curl -H "Accept: application/json" http://localhost:8080/api/employee
+
+
+What will be the default response type? -->> application/json
+
+In Spring Data, pagination is handled using the Pageable interface, which allows you to fetch data in chunks (pages) 
+		
+		Pageable pageable = PageRequest.of(page, size);		
+		Page<Employee> emp = employeeRepository.findAll(pageable);		
+			emp.getContent() → List of records
+			emp.getTotalPages() → Total number of pages
+			emp.getTotalElements() → Total number of records
+			emp.getNumber() → Current page number
+		-->> page: Page number (starts from 0)   size: Number of records per page
+		
+		-->> SOrting -->>  Pageable pageable = PageRequest.of(page, size, Sort.by("name").ascending());		                   
+							Sort sort = Sort.by("department").ascending().and(Sort.by("name").descending());
+							
+Design an endpoint if we want to get the product by categories and short the product price?
+		GET /api/products?category=Books&sort=asc → Books sorted by price (low to high)	
+		GET /api/products?category=Mobiles&sort=desc → Mobiles sorted by price (high to low)
+						
+		@GetMapping("/products")
+		public List<Product> getProductsByCategoryAndSort(
+				@RequestParam String category,
+				@RequestParam(defaultValue = "asc") String sort) {
+
+			Sort sortOrder = sort.equalsIgnoreCase("desc") ?
+					Sort.by("price").descending() :
+					Sort.by("price").ascending();
+
+			return productRepository.findByCategoryName(category, sortOrder);
+		}		
+		if pagable need-->>
+		Pageable pageable = PageRequest.of(page, size, sortOrder);
+		productRepository.findByCategoryName(category, pageable);
+		
+		Repository Method -->>							
+					public interface ProductRepository extends JpaRepository<Product, Long> {
+						List<Product> findByCategoryName(String categoryName, Sort sort); OR Page<Product> findByCategoryName(String categoryName, Pageable pageable);
+					}
+					
+@Cacheable(value = "productsByCategory", key = "#id")
+		value: Cache name
+		key: Cache key					
+@CachePut -->> When you want to update the cache with a new value -->> 	@CachePut(value = "products", key = "#product.id") -->> productRepository.save(product); 
+@CacheEvict -->> Removes an entry from the cache.   -->> @CacheEvict(value = "products", key = "#productId")  -->> productRepository.deleteById(productId); 
+@CacheEvict(value = "products", allEntries = true)  -->>  clear all entries in a cache:
+
+
+Which design pattern do you follow in microservice?
+		 Event-Driven Architecturec  -->> Kafka
+		 Circuit Breaker Pattern
+		  API Gateway Pattern
+		  Database per Service Pattern
+		  Saga Pattern
+
+LRU?
+    LRU stands for Least Recently Used it is caching algo,  LRU removes the least recently accessed item to make space for new item 
+	it implemeted by create class and extends LinkedHashMap and override method 
+	
+	@Override  //This method is called after every put() operation. If it returns true, the eldest entry (i.e., least recently used) is removed.
+    protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
+        return size() > capacity;
+    }
+	super(capacity, 0.75f, true); // true: accessOrder — If true, the map maintains entries in access order (most recently accessed at the end).
+	Example : 	
+		LRUCache<String, String> cache = new LRUCache<>(3);
+		cache.put("A", "Apple");
+		cache.put("B", "Banana");
+		cache.put("C", "Cherry");
+		cache.get("A"); // A is now most recently used
+		cache.put("D", "Date"); // B is now least recently used and will be removed
+
+HashMap: Allows one null key and multiple null values
+ConcurrentHashMap:  Does not allow null keys or values / Multi-threaded environments / Thread-safe
+	bucket-level locking in Concurrent hash map --> Locking: Only the specific bucket is locked during the update. / Other threads can operate on other buckets at the same time.
+	Hashtable or a synchronized HashMap, which lock the entire map, reducing concurrency.
+	
+
+@SpringBootApplication
+public class DemoApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(DemoApplication.class, args);
+    }
+}
+
+fault tolerance in microservice ?
+	fault tolerance refers to the system's ability to continue functioning even when one or more services fail.
+	Fault Tolerance Techniques in Microservices -->>
+	   Circuit Breaker (Resilience4j, Hystrix )  -->>  @CircuitBreaker(name = "myService", fallbackMethod = "fallbackMethod")	   
+		Retry -- >> @Retry(name = "myService", fallbackMethod = "fallbackMethod")
+		Rate Limiting -->>
+
+compatible future and future difference?
+
+	ExecutorService executor = Executors.newSingleThreadExecutor();
+	Future<String> future = executor.submit(() -> "Hello from Future");
+	String result = future.get(); // blocks until result is available
+
+	CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> "Hello from CompletableFuture");
+	future.thenApply(result -> result + " - processed")
+		  .thenAccept(System.out::println); // non-blocking
+	
+	CompletableFuture.supplyAsync(() -> { throw new RuntimeException("Error"); }).exceptionally(ex -> "Fallback due to: " + ex.getMessage());
+	
+	Non-blocking: You don’t need to call .get() unless you want to block.
+	Chaining: You can chain multiple operations (thenApply, thenAccept, etc.).
+	Exception Handling: Use .exceptionally() or .handle() to manage errors.
+	
+controller or rest controller?
+	rest controller -->> This returns plain text or JSON directly to the browser or API client.	 -->> @ResponseBody + @Controller
+	@Controller -->> This returns a view name that gets resolved by a template engine like Thymeleaf or JSP.
+
+write a rest controller that return random?
+		
+	private final Random random = new Random();
+    @GetMapping("/random")
+    public int getRandomNumber() {
+        return random.nextInt(100); // returns a random number between 0 and 99
+    }
+
+Bean Life cycle:
+			Bean Instantiation -->> Spring creates the bean instance using reflection.
+			Dependency Injection -->> injects dependencies via constructor, setter, or field injection.
+			BeanPostProcessor (Pre-Initialization) -->> postProcessBeforeInitialization() is called.-->> Here you can intercept and modify the bean before its initialization logic													
+										Modify Bean Properties -->>
+												if (bean instanceof MyService) {
+													((MyService) bean).setName("Modified Name");
+												}
+										validation-->>										
+												if (bean instanceof MyService && ((MyService) bean).getName() == null) {
+													throw new IllegalArgumentException("Name must not be null");
+												}
+
+			Initialization -->> @PostConstruct && afterPropertiesSet() called -->> we can set poolSize of restTemplete. so it will be available throwout the bean life.
+			BeanPostProcessor (Post-Initialization) -->> postProcessAfterInitialization() is called.-->> It’s your last chance to modify or wrap the bean 
+														before it’s handed over for use in the application.
+															You can return a decorated version of the bean that adds extra behavior-->> EX															
+																if (bean instanceof NotificationService) {
+																	return new EnhancedNotificationService((NotificationService) bean);
+																}
+															You can register the bean with a monitoring system like Micrometer or Prometheus.															
+																if (bean instanceof DataSource) {
+																	metricsRegistry.register("custom.datasource", (DataSource) bean);
+																}
+			Bean Ready for Use -->> Bean is fully initialized and available for use.
+			Destruction -->> @PreDestroy
+			
+Spring Bean Scopes:
+				singleton -->>	Default scope. A single instance per Spring container.     -->> @Scope("singleton") -->> (Any Spring app)
+				prototype -->> 	Spring creates a new instance of the bean each time it is requested from the container.  -->> @Scope("prototype") -->> (Any Spring app)
+						ex: if manually request the bean from the container using ApplicationContext.getBean()
+						But if you inject it using @Autowired, Spring injects only once at startup. oNly one instance
+				
+				request	 -->> A new bean instance is created per HTTP request. -->>       @Scope(value = WebApplicationContext.SCOPE_REQUEST)
+						(Web applications only)Only works in web-Spring applications (like Spring MVC).
+				
+				session	-->> A new bean instance is created for each HTTP session. (web applications).  -->> @Scope(value = WebApplicationContext.SCOPE_SESSION
+						Use Case: Useful when you want to store user-specific data across multiple requests in a web application.
+						Created when a new HTTP session starts. Destroyed when the session ends or times out.
+						
+				application-->> A single bean instance is created for the entire lifecycle of the web application. (web applications).
+						Use Case: Ideal for storing global data shared across all users and sessions.
+						Created when the application starts. Destroyed when the application shuts down.
+				
+									
+Reflection in Java:
+					In Java, reflection is a powerful feature that manipulate behavior of classes, interfaces, fields, and methods at runtime
+					It can Discover What a class contains (fields, methods, constructors) Even private members and Manipulate Values and behavior at runtime
+					
+					// Get the private field
+					Field field = foo.getClass().getDeclaredField("name");
+					//method invoke.					
+					Method method = foo.getClass().getMethod("doSomething", null);
+					method.invoke(foo, null);
+					
+			Reflection is heavily used in: -->>
+							Spring Framework (e.g., dependency injection, AOP)
+							Hibernate (e.g., ORM mapping)
+
+@ConditionalOnProperty -->> 
+						This annotation used to conditionally enable or disable a bean based on the presence and value in application.yml
+						property:-->>						
+						@ConditionalOnProperty(name = "feature.enabled",havingValue = "true",matchIfMissing = false)
+							name: The name of the property to check in yml.
+							havingValue: The value that match with yml if same then only create the bean like our case it should be true.
+							matchIfMissing: If true, the bean will be created even if the property is missing.
+
+
+Entity Lifecycle or 4 stages of Entity Object during its lifecycle: entity object can exist in four main states during its lifecycle-->>
+
+			1. Transient State -->> Entity object is created using new, but it's not associated with any Hibernate session / Hibernate doesn't track it.
+									EX: Employee emp = new Employee(); // Transient
+			
+			2. Persistent State -->> Entity object is associated with a Hibernate session and is saved or will be saved in the database.
+									Hibernate tracks changes and syncs them with the DB.
+									EX:																			
+										Session session = sessionFactory.openSession();
+										session.beginTransaction();
+										session.save(emp); // Now emp is Persistent
+										emp.setName("Ravi Chand"); // Hibernate will update this change in DB
+										session.getTransaction().commit();
+										session.close();
+
+			3. Detached State -->> The session is closed, but the object still exists in memory. Hibernate no longer tracks changes unless reattached.
+									EX:	
+										session.close();									
+										// After session is closed
+										emp.setName("Ravi C"); // Change won't be saved unless reattached
+										Session newSession = sessionFactory.openSession();
+										newSession.beginTransaction();
+										newSession.update(emp); // Reattaching to make it persistent again
+										newSession.getTransaction().commit();
+										newSession.close();
+										
+			4. Removed State  -->> The object is marked for deletion from the database. Hibernate will delete it when the transaction is committed.
+									EX:									
+										Session session = sessionFactory.openSession();
+										session.beginTransaction();
+										session.delete(emp); // emp is now in Removed state
+										session.getTransaction().commit();
+										session.close();
+
+
+merge and update	-->> real world EX:
+			Imagine you’re managing employee records:
+			update is like saying: “I already have this employee in my system. I just want to change their phone number.”
+			merge is like saying: “I have a copy of an employee record. Please sync it with the one in the system — if it exists, update it; if not, add it.”
+			
+			In Hibernate, both update() and merge() are used to reassociate a detached object with a Hibernate session, 		
+									 
+		    Merge Vs Update EX:							
+							Session session1 = sessionFactory.openSession();
+							Employee emp1 = session1.get(Employee.class, 1); // emp1 is in session1
+							session1.close(); // emp1 is now detached
+
+							// Modify detached object
+							emp1.setName("Updated by update");
+
+							// Open a new session and load the same entity again
+							Session session2 = sessionFactory.openSession();
+							Employee emp2 = session2.get(Employee.class, 1); // emp2 is now in session2
+
+							Transaction tx = session2.beginTransaction();
+							session2.update(emp1); // ❌ Throws NonUniqueObjectException / session2.merge(emp1); // ✅ Works fine
+							tx.commit();
+							session2.close();
+			
+			Update throw a NonUniqueObjectException If the same object (with the same identifier) is already associated with the session,
+									When to use : You are sure that the object is not already in the session.
+			
+			Performance	-->> update is Slightly faster	and merge is Slightly heavier (due to copying)
+									
+
+EntityManager.find() (JPA)  and            Session.get() (Hibernate)
+Proxy support	-->> Use getReference()    instead	Use load() for proxy
+
+SessionFactory is a thread-safe, heavyweight object used to create Session instances, which are the primary interfaces for interacting with the database.
+				Created once during application startup.
+				
+				hibernate.cfg.xml -->> 						
+					<session-factory>
+							<!-- DB connection settings -->  DB URL PASS
+							<!-- Hibernate settings --> dialect show sql etc 
+					<session-factory>
+				
+				static final SessionFactory sessionFactory = new Configuration().configure().buildSessionFactory();
+						
+
+Second level cache: 
+		How Second-Level Cache Works -->> Hibernate checks the first-level cache (session).-->>	If not found, it checks the second-level cache (shared).
+		If still not found, it queries the database.		
+		
+		<dependency>    
+			<artifactId>hibernate-ehcache</artifactId>    
+		</dependency>		
+		
+		hibernate.cache.use_second_level_cache=true
+		hibernate.cache.region.factory_class=org.hibernate.cache.ehcache.EhCacheRegionFactory
+		hibernate.cache.use_query_cache=true		
+		
+		@Entity
+		@Cacheable
+		@org.hibernate.annotations.Cache(usage = CacheConcurrencyStrategy.READ_WRITE)
+		public class Employee {
+		}
+		
+		Add ehcache.xml -->>		
+		<ehcache>
+			<defaultCache
+				timeToIdleSeconds="300"
+				timeToLiveSeconds="600"/>
+		</ehcache>
+		
+		When Not to Use -->> If data consistency is critical and caching may cause stale reads.
+
+		
+Multiple Thread updating the single row, then how to handle it:
+		1 - optimistic locking via the @Version annotation-->>			
+					@Entity
+					public class Employee {
+						@Id
+						private Long id;
+						@Version
+						private int version;
+					}
+				When you update an entity like this:				
+					employee.setName("Updated Name");
+					session.update(employee);
+				Hibernate generates SQL like:				
+					UPDATE employee	SET name = ?, version = ? WHERE id = ? AND version = ?
+			
+			Hibernate automatically adds the version column to the UPDATE query when you use optimistic locking via the @Version annotation. 
+			You do not need to manually include it in your update logic.		
+			It checks the current version in the database. If the version has changed (i.e., another transaction updated it), the update affects 0 rows.
+			Hibernate then throws an OptimisticLockException. Lightweight and ideal for read-heavy applications.
+		
+		2 - Pessimistic Locking -->> Locks the row in the database / Prevents other transactions from reading or writing until the lock is released.
+									database row is locked immediately when it's read, preventing other transactions from modifying or even reading it until the lock is released.
+									To prevent concurrent updates to the same row.
+									To ensure data consistency in high-contention environments. Useful when multiple users might try to modify the same data at the same time.
+							
+							
+			Use -->> Employee emp = session.get(Employee.class, 1L, LockMode.PESSIMISTIC_WRITE) /  entityManager.find(Employee.class, 1L, LockModeType.PESSIMISTIC_WRITE);
+					PESSIMISTIC_WRITE / PESSIMISTIC_READ
+
+
+		3. Transaction Isolation Level -->> READ_COMMITTED (default in many DBs)/ REPEATABLE_READ / SERIALIZABLE (most strict, least concurrent)
+		
+
+private: 		-->> Only accessible within the same class.
+default: 		-->> Accessible within the same package.
+protected: 		-->> Accessible within the same package and in subclasses (even if in different packages).
+public: 		-->> Accessible from anywhere.
+
+				Note: protected and private can not put on class level.
+
+				protected members/methods are accessible in subclasses, even if they are in different packages.
+				But they are not accessible via object reference outside the package. Parent p = new Parent() -->> p.show()/p.a  this will not work
+
+
+1. Date d  -->>
+				This declares a reference variable d of type Date.
+				It is not initialized. If used as a class field, Java will default it to null.
+				If used inside a method, it must be explicitly initialized before use — otherwise, you'll get a compile-time error.
+
+2. Date d = null  -->> 
+				This declares and explicitly initializes the reference to null. Safe to use anywhere — class-level or method-level.
+
+//SOrt by assending then length
+List<String> name = Arrays.asList("Ravi","Chand","Java","INterview");				
+List<String> sorted1 = name.stream().sorted().sorted(Comparator.comparing(String::length)).toList();	
+
+stream vs Collections -->>
+			Streams and Collections are both used to handle groups of objects, 
+				Collections -->> are part of the Java Collections Framework. 
+				                 Collections like List, Set, and Map are used to store and retrieve data. 
+								 Mutable: You can add, remove, or update elements.
+								 Eager evaluation: Operations are performed immediately.
+				Streams -->> Streams are introduced in Java 8 and are used for processing data,Focuses on how to process data, not store it.
+							Immutable: Stream operations do not modify the source.
+							Lazy evaluation: Operations are evaluated only when a terminal operation is invoked.
+							
+				Collections – Think of it like a basket where you keep things.
+					You store items like numbers, names, etc.
+					You can add, remove, or change items.
+					You use Collections when you want to hold and manage data.
+					Examples: List, Set, Map
+				
+				Streams – Think of it like a water stream flowing through the basket.
+					You don’t store anything.
+					You just look at the items, filter, sort, or count them.
+					You can’t change the original basket.
+					You can use it only once.
+					🧠 You use Streams when you want to process or analyze data.
+
+map vs flat map  -->> flatten the structure. One big list from many small lists.
+				map → transforms each item. One-to-One Transformation
+				flatMap → transforms and flattens nested items. One-to-Many Transformation
+				
+				You have a box of fruits. Each fruit is a word.  ex: List<String> fruits = Arrays.asList("Apple", "Banana", "Mango");
+				Using map:
+						You look at each fruit and say: “I’ll just count the letters in each word.”
+				 Using flatMap:
+						Now imagine each fruit is actually a basket of small fruits (like a list of words). You want to take all small fruits out and put them in one big basket.
+
+concurrency vs parrallism	-->> 
+				Concurrency – Doing many things, but not necessarily at the same time
+							Think of one person cooking multiple dishes.
+							They switch between tasks: boil rice, then chop veggies, then stir curry.
+					In Java:  Concurrency is achieved using threads, executors, or async programming.
+					
+				Parallelism – Doing many things at the same time
+						Think of multiple people cooking different dishes at the same time.
+						Tasks run simultaneously on multiple processors or cores.
+					In Java:
+						Parallelism is achieved using parallel streams, ForkJoinPool, or multi-core processing.
+						
+				Example	One chef switching between dishes(Concurrency)	Multiple chefs cooking at once(Parallelism)
+						Goal->>	Better responsiveness	                Faster execution
+						
+				Concurrency is when multiple tasks make progress over time, but not necessarily at the same time.
+					Imagine a single chef preparing multiple dishes. The chef:
+					Boils pasta or 	While pasta is boiling, chops vegetables
+					The chef is switching between tasks, not doing them all simultaneously. That’s concurrency.
+				 One thread handles multiple client requests by switching between them.
+				
+				 Parallelism (Think: simultaneous execution)
+					Parallelism is when multiple tasks run at the same time, typically on multiple processors or cores.
+					Imagine a team of chefs, each working on a different dish at the same time:
+					All tasks happen simultaneously. That’s parallelism.
+
+break vs continue;	-->> both break and continue are control flow statements used inside loops
+					break Statement -->> Purpose: Immediately exits the loop or switch block.
+					continue Statement-->> Purpose: Skips the current iteration and moves to the next one.
+
+implecit vs explict type casting-->>
+					Implicit Type Casting -->> Also known as automatic type conversion, 
+									when:You assign a value of a smaller data type to a larger data type.									
+									int a = 10;
+									double b = a;  // int to double (implicit casting) // Here, int is smaller than double, so Java safely converts a to a double.
+					
+					Explicit Type Casting -->> Also known as manual type conversion.
+									You assign a value of a larger data type to a smaller data type. There's a potential for data loss, so Java requires you to explicitly cast it.									
+									double x = 10.5;
+									int y = (int) x;  // double to int (explicit casting) // Here, the fractional part .5 is lost during conversion.
+
+
+
+deep vs shaloow coping -->> In Java, shallow copy and deep copy refer to how objects are duplicated, especially when they contain references to other objects.
+					shaloow -->> Imagine you have an object called Employee, and inside it, there's another object called Laptop.
+								When you do a shallow copy of Employee, Java creates a new Employee object, but it does not create a new Laptop. 
+								Instead, it just copies the reference (pointer) to the same Laptop.
+								You have two Employee objects: original and copy.
+								But both original.laptop and copy.laptop point to the same Laptop object in memory.
+								So If you change the name in the laptop object of the cloned Employee, it will also reflect in the original.								
+								
+										class Employee implements Cloneable {
+											String name;
+											Address address;
+
+											Employee(String name, Address address) {
+												this.name = name;
+												this.address = address;
+											}
+
+											@Override
+											protected Object clone() throws CloneNotSupportedException {
+												return super.clone(); // Shallow copy
+											}											
+											
+											// Shallow copy
+											Employee emp2 = (Employee) emp1.clone();
+
+					
+					Deep -->>  Imagine you have an employee record and Employee object contains: Your name: "Ravi" and A Laptop object with brand: "Dell"
+								Now, we want to copy this employee record. 
+								on Deep copping It create a new Employee object. IT also create a new Laptop object with the same brand "Dell".
+								and originalEmployee and copiedEmployee are two separate objects. Their laptops are also two separate objects.
+							
+							What Happens If You Change Something?								
+										copiedEmployee.laptop.brand = "HP";
+										System.out.println(originalEmployee.laptop.brand);  // Output: Dell //The original stays "Dell" because the copy has its own laptop.
+						
+							In Deep one we need to clone obj ref also inside clone() like laptop.clone(); inside Emp/parent class.
+							
+							
+								class Address implements Cloneable {
+									String city;
+
+									Address(String city) {
+										this.city = city;
+									}
+
+									@Override
+									protected Address clone() throws CloneNotSupportedException {
+										// Strings are immutable, so copying the reference is fine.
+										// If there were mutable fields, clone/copy them here.
+										return (Address) super.clone();
+									}
+								}
+								
+								
+								class Employee implements Cloneable {
+									String name;
+									Address address;
+
+									Employee(String name, Address address) {
+										this.name = name;
+										this.address = address;
+									}
+
+									@Override
+									protected Employee clone() throws CloneNotSupportedException {
+										Employee copy = (Employee) super.clone();   // shallow copy of primitives/refs
+										copy.address = this.address.clone();        // ✅ deep copy the nested object
+										return copy;
+									}
+								}
+								
+								
+								Address addr = new Address("Noida");
+								Employee e1 = new Employee("Ravi", addr);
+        								
+
+
+can we make any collection read Only yes then how. somebody can not change. -->>
+						Collections.unmodifiableSet(Set s)
+						Collections.unmodifiableMap(Map m)
+						Collections.unmodifiableList(List l)
+						
+						Using List.of(), Set.of(), Map.of() (Java 9+) -->> These methods create immutable collections directly.
+						
+						Synchronized Collections-->> Synchronization is about thread safety, not immutability.You can still modify synchronized collections
+							These are thread-safe versions of collections. They ensure that only one thread can access the collection at a time,
+								List<String> syncList = Collections.synchronizedList(new ArrayList<>());
+								Map<String, String> syncMap = Collections.synchronizedMap(new HashMap<>());
+
+							
+						
+						
+is-a and has a relation.  -->> "is-a" Relationship (Inheritance)  like Dog is a animal
+								 "has-a" Relationship (Composition/Aggregation) -->>  when one class contains another as a field.  like Car has a engine
+
+checked and runtime  -->> NullPointerException, ArrayIndexOutOfBoundsException, ArithmeticException, ClassCastException, ConcurrentModificationException
+							IOException, FileNotFoundException, SQLException, ParseException, ClassNotFoundException
+
+fault tolrence -->> system's ability to gracefully handle failures and continue functioning without crashing. @Retryable/ Circuit Breaker/ . Rate Limiting
+
+put and patch  -->> In RESTful APIs, both PUT and PATCH are HTTP methods used to update resources, but they differ in how they update and what they expect from the client.
+                PUT: 
+					PUT – Full Update -->> Replaces the entire resource.Requires the complete representation of the resource. If any field is missing, it may be removed or reset.
+				
+				PATCH – Partial Update
+					Updates only specified fields.More efficient when you want to change just a few attributes.Leaves unspecified fields unchanged.					
+						PATCH /users/123
+						{
+						  "email": "newemail@example.com"
+						}
+					This will only update the email of user 123, keeping other fields intact.
+
+					
+
+status 403      -->>   client authenticate but not have permission to access the resource.
+						403 Forbidden status code means: 🔒 The server understood the request, but refuses to authorize it.
+						Common Causes of 403 -->> 
+									Authentication is missing or insufficient
+									The user is not logged in or lacks proper credentials.
+									
+									Authorization failure:
+									The user is logged in but does not have permission to access the resource.
+									
+									Access control rules:
+									Security configurations (e.g., Spring Security) block access based on roles or IP.
+									
+									CSRF protection failure:
+									In Spring apps, missing or invalid CSRF tokens can cause 403.
+									
+Status 401 : unauthorize. user/pass incorrect / Expired  JWT token.
+
+Status: 404:  -->> Not found resource / Wrong HTTP method / Incorrect URL or endpoint
+
+@Qualifier   -->>  @Qualifier annotation is used to resolve ambiguity when multiple beans of the same type are available in the application context.
+					
+					inteface Animal with speak()
+					
+					@Component("dog")
+					public class Dog implements Animal {
+						public void speak() {
+							System.out.println("Woof!");
+						}
+					}
+
+					@Component("cat")
+					public class Cat implements Animal {
+						public void speak() {
+							System.out.println("Meow!");
+						}
+					}
+					
+					
+					@Autowired
+					@Qualifier("dog")  // Specifies which bean to inject
+					private Animal animal;					
+					
+					public void makeAnimalSpeak() {
+							animal.speak();  // Outputs: Woof!
+						}
+
+
+
+
+normalization and denormalization  -->>
+						Normalization: 
+							Normalization -->> Purpose: To reduce data redundancy and improve data integrity. 
+							                   Process: Organizing data into multiple related tables to minimize duplication.
+											   Normal Forms: There are several levels (1NF, 2NF, 3NF, BCNF, etc.), each with stricter rules.
+											Example:
+												Instead of storing customer and order details in one table, you split them:
+												Customers table: stores customer info.
+												Orders table: stores order info with a foreign key referencing Customers.
+										
+										Adv :  Saves storage by eliminating redundant data / Easy Maintain.
+										DisAdv: Slightly slower performance for read-heavy operations.
+							
+							Denormalization -->> Purpose: To improve read performance by reducing the number of joins.
+												Process: Combining tables or adding redundant data to simplify queries.
+											Example:
+												Instead of separate Customers and Orders tables, you might combine them into one table with repeated customer info.
+											
+										Adv:        	Faster read operations.
+										Disadvantages: Increased data redundancy.
+
+where and having clause  -->> The WHERE and HAVING clauses in SQL are both used to filter records,
+							   WHERE Clause -->>  Used to filter rows before grouping or aggregation. Applies to individual rows in a table. 
+												Cannot be used with aggregate functions like SUM(), AVG(), etc.
+							    HAVING Clause -->> Used to filter groups after aggregation. Applies to grouped data (used with GROUP BY).
+													Can use aggregate functions.
+
+SQL vs PLSQL   -->>
+					SQL (Structured Query Language)-->> Purpose: Used to query and manipulate data in a relational database.
+														Type: Declarative language.
+														Usage: Executes one statement at a time.
+														
+					PL/SQL (Procedural Language/SQL) -->> 
+														Purpose: Extends SQL with procedural capabilities like loops, conditions, and exception handling.
+														Type: Procedural language.
+														Usage: Can execute multiple statements in a block.
+														
+
+How is the Decorator Pattern implemented in Java?
+				It involves:
+					A common interface (Component)
+					A concrete class (ConcreteComponent)
+					An abstract decorator class (Decorator)
+					Concrete decorators that extend the decorator class						    
+					
+					1. Component Interface
+						interface Message {
+							String getContent();
+						}
+					
+					2. Concrete Component					
+						class SimpleMessage implements Message {
+							public String getContent() {
+								return "Hello";
+							}
+						}
+						
+					3. Decorator Base Class					
+					abstract class MessageDecorator implements Message {
+						protected Message message;
+
+						public MessageDecorator(Message message) {
+							this.message = message;
+						}
+
+						public String getContent() {
+							return message.getContent();
+						}
+					}
+					
+					
+					4. Concrete Decorators that extend the Decorator class
+					class StarDecorator extends MessageDecorator {
+						public StarDecorator(Message message) {
+							super(message);
+						}
+
+						public String getContent() {
+							return "***" + super.getContent() + "***";
+						}
+					}							
+					class BracketDecorator extends MessageDecorator {
+						public BracketDecorator(Message message) {
+							super(message);
+						}
+
+						public String getContent() {
+							return "[" + super.getContent() + "]";
+						}
+					}
+					
+					
+				   public static void main(String[] args) {
+						Message msg = new SimpleMessage(); // "Hello"
+						msg = new StarDecorator(msg);      // "***Hello***"
+						msg = new BracketDecorator(msg);   // "[***Hello***]"
+
+						System.out.println(msg.getContent());
+					}
+
+						
+		Inheritance (Compile-Time Behavior) -->> This behavior is fixed at compile time—you can't change it dynamically.All instances of the subclass will have the same behavior.
+		Decorator (Runtime Behavior)   -->> The decorator pattern lets you wrap an object with new behavior while the program is running.You can choose which decorators to apply
+		
+
+Microservices -->> are an architectural style where an application is composed of small, independent services that communicate over APIs.
+					Each service is loosely coupled, independently deployable, and focused on a specific business capability.	
+
+
+How do you handle data consistency in Microservices?
+						Microservices often have separate databases, making ACID transactions across services difficult.
+						Use event-driven architecture and eventual consistency.
+						Patterns like Saga ( used to manage distributed transactions across multiple microservices)
+
+What are some challenges in Microservices architecture?
+						Complexity in deployment and monitoring.
+						Data consistency across services.
+						Latency due to network calls.
+						Testing becomes harder (need integration and contract testing).
+						
+The Saga design pattern    -->> Consider an e-commerce order process involving OrderService, PaymentService
+								Order Creation:
+										OrderService receives an order request.
+										It creates a new order with PENDING status and publishes an OrderCreatedEvent to a message broker (e.g., Kafka).
+								Payment Processing:
+										PaymentService consumes OrderCreatedEvent.
+										It processes the payment.
+										If successful, it publishes a PaymentProcessedEvent.
+										If failed, it publishes a PaymentFailedEvent.						
+
+
+TOmcat replace with jBOSS    -->>			
+			
+		1	<packaging>war</packaging>
+
+		2	dependency>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-starter-web</artifactId>
+				<exclusions>
+					<exclusion>
+						<groupId>org.springframework.boot</groupId>
+						<artifactId>spring-boot-starter-tomcat</artifactId>
+					</exclusion>
+				</exclusions>
+			</dependency>
+								
+
+		3	@SpringBootApplication
+			public class MyApplication extends SpringBootServletInitializer {
+
+				@Override
+				protected SpringApplicationBuilder configure(SpringApplicationBuilder builder) {
+					return builder.sources(MyApplication.class);
+				}
+
+				public static void main(String[] args) {
+					SpringApplication.run(MyApplication.class, args);
+				}
+			}
+			
+
+Why Extend SpringBootServletInitializer?
+		Think of your Spring Boot app like a machine. When you run it as a standalone JAR, it has its own power switch (embedded Tomcat) and starts itself.
+		But when you deploy it to JBoss/WildFly, you're putting that machine into a factory (JBoss server). Now, the factory has its own power system and rules for starting machines.
+
+		✅ "Enable Spring Boot to initialize the application context when deployed as a WAR"
+			Spring Boot needs to set up everything (like controllers, services, configs).
+			When deployed as a WAR, it can’t start itself like it does in a JAR.
+			So SpringBootServletInitializer acts like a bridge between JBoss and Spring Boot, telling Spring Boot:
+			“Hey, we’re inside JBoss now. Start your stuff using their rules.”
+		✅ "Provide a way to configure the application using the configure() method"
+			The configure() method is like a setup guide.
+			It tells Spring Boot:
+			“Here’s the main class to start from when JBoss loads this app.”
+		✅ "Spring Boot needs a way to hook into the servlet container's lifecycle"
+			JBoss is a servlet container.
+			It has its own way of starting web apps.
+			Spring Boot needs to plug into that lifecycle so it knows when to start and stop.
+			SpringBootServletInitializer is that plug.													
+			
+	<scope>provided</scope> -->> Use it during development and compilation (so your code compiles and runs locally).
+								 Do NOT include it in the final WAR file (because the server like JBoss already provides it).									 
+	
+	<scope>compile</scope> -->> Used for: Dependencies needed everywhere — during development, testing, and runtime.
+								Example: Spring Boot core libraries, like spring-boot-starter-web.									
+	
+	<scope>runtime</scope>  -->> Used for: Dependencies not needed for compilation, but needed when the app runs.
+								 Example: JDBC drivers, logging libraries.									 
+			
+	<scope>test</scope>     -->> Used for: Dependencies needed only for testing. Example: JUnit, Mockito. Not included in your final JAR/WAR		
+	
+	<scope>system</scope>
+	<systemPath>${project.basedir}/lib/some-lib.jar</systemPath>   -->> Used for: Dependencies provided by the system, not downloaded from Maven. Getting from local system.
+																		You must specify the path manually. (rarely used)
+
+
+
+What Is Spring Boot Configuration? -->> 
+						Spring Boot configuration is how you set up your application’s behavior — like database settings, server ports, logging levels, etc. You do this using:
+						application.properties or application.yml
+						Java configuration classes (@Configuration)
+						
+How to Automate Configuration in Spring Boot? -->> Auto Configuration via @SpringBootApplication
+					@Configuration – Spring will look inside this class to create and manage beans. 
+									Spring sees @Configuration and knows this class contains beans.
+									It creates a MyServiceImpl bean and makes it available for injection using @Autowired.
+									
+					@EnableAutoConfiguration – Tells Spring Boot to automatically configure beans based on the dependencies in your classpath.
+												If you have spring-boot-starter-web in your pom.xml, Spring Boot will:
+												Set up an embedded Tomcat server
+												Configure a DispatcherServlet
+												
+					@ComponentScan – scans for components in the package / 
+									Tells Spring to scan the package and sub-packages for components like @Component, @Service, @Repository, and @Controller.
+
+			2 - dependency; spring-boot-starter-web
+			3 - application.yml
+			
+How You Use Auto Configuration  -->>> Adding the right starter dependencies (e.g., spring-boot-starter-data-jpa)
+									Letting Spring Boot detect and configure beans automatically
+									
+A circular dependency happens when two or more beans depend on each other, forming a loop. -->> 
+		
+						@Component
+						public class A {
+							@Autowired
+							private B b;
+						}
+
+						@Component
+						public class B {
+							@Autowired
+							private A a;
+						}
+					A needs B
+					B needs A
+					
+					Fix : 1. Use Setter Injection Instead of Constructor Injection
+						2 - 	Use @Lazy Annotation								
+									@Autowired
+									@Lazy
+									private B b;
+									
+
+ToString: Lombok-->> Can exclude fields using @ToString(exclude = {"field"}) or include only specific ones / Automatically updates when fields change
+						Employee(name=Ravi, age=30, department=IT)
+		   Use manual override when: You need custom formatting / You want to hide sensitive fields / Improved Debugging / Readable Logging 		   
+					   
+			@Override
+			public String toString() {
+				StringBuilder sb = new StringBuilder();
+				sb.append("Employee{")
+				  .append("name='").append(name).append('\'')
+				  .append(", age=").append(age)
+				  .append(", department='").append(department).append('\'')
+				  .append('}');
+				return sb.toString();
+			}
+		StringBuilder in a toString() method is primarily about performance and efficiency, especially when you're concatenating multiple strings.
+				In Java, strings are immutable. So every time you use + to concatenate, a new String object is created.
+				This is inefficient when you have many fields, especially in loops or large objects.
+				StringBuilder are mutable , so it appends strings without creating new objects.
+
+
+Time complexity     -->>  describes how the runtime of an algorithm grows as the size of the input increases. It's usually expressed using Big O notation, like:								
+						O(1) – Constant time -->> System.out.println(arr[0]); // Always takes same time
+						O(n) – Linear time   -->> for (int i = 0; i < arr.length; i++) { System.out.println(arr[i]); // Time grows with input size }
+						O(n²) Quadratic Time  -->>  Nested Loop
+						O(log n) Logarithmic Time (Binary Search) -->> /2
+						O(n log n) – Merge Sort  -->> devide and concure
+						
+"In my recent project, we implemented a microservices-based architecture using Spring Boot, where three independent services communicated asynchronously via Apache Kafka.
+
+Scenario: -->> 
+				Class A is defined with singleton scope (@Scope("singleton") or default).
+				Class B is defined with prototype scope (@Scope("prototype")).
+				Class A has a dependency on Class B. (inject Class B into Class A,)
+				then: -->>
+					Class A instant is created once (singleton).
+					Class B Even though Class B is prototype-scoped, you get the same instance of B every time you use A
+							This is because Spring injects dependencies at bean creation time, and since A is singleton, it gets only one instance of B.
+					
+			But You Want Prototype Behavior for Class B? -->> If you want Class A to use a fresh instance of Class B every time, 
+			    1-ObjectFactory  -->>				
+								@Autowired
+								private ObjectFactory<ClassB> classBFactory;
+								public void doSomething() {
+									ClassB b = classBFactory.getObject(); // gets a new instance
+									b.process();
+								}
+				2- javax.inject.Provider:				
+						private Provider<ClassB> classBProvider;
+						public void doSomething() {
+							ClassB b = classBProvider.get(); // new instance
+						}
+						
+				3 - ClassB b = context.getBean(ClassB.class); // new prototype instance
+				
+	
+@Entity    -->>  annotation in JPA (Java Persistence API) is used to mark a Java class as a persistent entity, meaning it maps to a database table.
+					Declares that the class is an entity managed by JPA.
+					Each instance of the class represents a row in the database table.
+						 Requires:
+									A primary key (annotated with @Id).
+									A no-argument constructor (can be protected or public). -->> Object Creation via Reflection/ 
+									                                      Proxy and Lazy Loading (proxies need a no-arg constructor to initialize the object properly)
+
+EntityManagerFactory     -->>  a thread-safe factory that configures JPA once and creates EntityManager instances.
+EntityManager         -->>     a not-thread-safe, per-unit-of-work object that represents a persistence context (the first-level cache/identity map where entities are managed).
+								Performs CRUD, queries
+								
+@Transactional -->>  is a Spring annotation used to manage transactions declaratively.	It tells Spring that the method should run inside a database transaction
+							Start a transaction before the method executes.
+							Commit the transaction if the method completes successfully.
+							Rollback the transaction if a runtime exception occurs (by default).	
+
+
+Inheritance
+			What it is: A mechanism where one class (child/subclass) inherits properties and behavior from another class (parent/superclass).
+			Relationship: “IS-A” relationship.		 Car extends Vehicle so  Car is-a Vehicle.	
+			Code reuse./Polymorphism support. and Tight coupling.
+			
+Composition
+			What it is: A design principle where one class contains an instance of another class to reuse its functionality.
+			Relationship: “HAS-A” relationship. Car has a Engine
+			Promotes loose coupling / Easier to change behavior at runtime. and  Slightly more boilerplate code.
+
+Abstraction in Java is about hiding implementation details and exposing only the essential features to the user. 			
+		How Do We Utilize Abstraction? -->> 
+							Using Abstract Classes
+							Using Interfaces
+							In Real Projects  -->> JpaRepository (interface) → hides DB implementation.
+												   List interface → you can use ArrayList or LinkedList without changing code.
+												   
+		Uses of Abstraction-->>
+				Hides complexity: Users don’t need to know internal logic.
+				Improves maintainability: Change implementation without affecting clients.
+				Supports loose coupling: Code depends on interfaces, not concrete classes.
+
+			
+
+@Override
+public boolean equals(Object o) {
+	if (this == o) return true;
+	if (!(o instanceof Book)) return false;
+	Book book = (Book) o;
+	return yearPublished == book.yearPublished &&
+		   Objects.equals(title, book.title) &&
+		   Objects.equals(author, book.author);
+}
+
+
+@Override
+public int hashCode() {
+	return Objects.hash(title, author, yearPublished);
+}
+
+
+IOC     -->>   Inversion of Control (IoC) is a fundamental concept in software design, especially in frameworks like Spring 
+				Instead of the programmer controlling the flow and creating dependencies manually, the framework takes control and injects dependencies where needed.
+				A design principle where the control of object creation and flow is transferred from the application code to a framework or container.
+			Example: In Spring, the framework manages the lifecycle of beans instead of the developer manually instantiating them.
+				
+			Traditionally	-->> 
+			Service service = new Service();
+			Controller controller = new Controller(service);
+			
+			with IOC -->>
+			@Component
+			public class Controller {
+			private final Service service;
+
+			@Autowired
+			public Controller(Service service) {
+				this.service = service;
+			}
+			Now, Spring injects the Service into the Controller, and you don’t manually create it.
+		
+		🔧 IoC vs Dependency Injection (DI)
+			IoC is the broader principle.
+			DI is a specific way to implement IoC — by injecting dependencies rather than creating them.
+			
+			DI -->> A specific technique to implement IoC, where dependencies (objects a class needs) are provided by an external source (like Spring). 
+			
+	Functions of IoC  -->> Dependency Management / Decoupling Components /Lifecycle Control / Improved Testability ( inject mock dependencies during unit testing.)
+	
+	
+
+http://localhost:8080/actuator/health
+
+
+
+SELECT e.first_name, COUNT(o.order_id) AS order_count
+FROM employees e
+JOIN orders o ON e.employee_id = o.employee_id
+GROUP BY e.first_name
+HAVING COUNT(o.order_id) > 25;
+
+
+Immutable 
+			public final class Employee {
+				private final Address address;
+				private final String name;
+				private final int empId;
+
+				public Employee(String name, int empId, Address address) {
+					this.name = name;
+					this.empId = empId;
+					this.address = new Address(address.getStreet(), address.getCity()); // Defensive copy
+				}
+
+				public String getName() {
+					return name;
+				}
+				
+				
+				final class Address {
+				private final String street;
+				private final String city;
+
+				public Address(String street, String city) {
+					this.street = street;
+					this.city = city;
+				}
+
+				public String getStreet() {
+					return street;
+				}
+
+
+		Defensive Copy?
+			It prevents external code from modifying the internal state of the object.
+			Even though Address is immutable here, defensive copying is a good habit for safety.
+		
+		Defensive Copying is a technique used in Java to protect the internal state of an object from being modified by external code. 
+		It's especially important when you're designing immutable classes.
+
+
+Ways to Break Singleton in Java -->> 
+				1. Reflection-->>  You can access the private constructor and create a new instance.						
+								Constructor<Singleton> constructor = Singleton.class.getDeclaredConstructor();
+								constructor.setAccessible(true);
+								Singleton newInstance = constructor.newInstance(); // breaks singleton					
+					 Fix: Throw an exception in the constructor if an instance already exists.
+					 
+				2. Serialization/Deserialization -->>										
+									protected Object readResolve() {
+										return getInstance();
+									}
+				3. Cloning   -->>
+						Fix: Override clone() to throw an exception.
+						
+
+Singleton      -->>
+				public final class Singleton implements Serializable {
+					private static final long serialVersionUID = 1L;
+
+					// Eager initialization
+					private static final Singleton INSTANCE = new Singleton();
+
+					// Private constructor to prevent instantiation
+					private Singleton() {
+						if (INSTANCE != null) {
+							throw new RuntimeException("Use getInstance() method to get the single instance of this class.");
+						}
+					}
+
+					// Public method to provide access to the instance
+					public static Singleton getInstance() {
+						return INSTANCE;
+					}
+
+					// Prevents creating a new instance during deserialization
+					protected Object readResolve() {
+						return getInstance();
+					}
+
+					// Prevents cloning
+					@Override
+					protected Object clone() throws CloneNotSupportedException {
+						throw new CloneNotSupportedException("Cloning of this singleton is not allowed");
+					}
+				}
+											   
+
+Return Type of submit() -->>  submit() method is part of the ExecutorService interface. It has overloaded versions depending on whether you're submitting a Runnable or a Callable.
+				1. When submitting a Runnable: -->>   Future<?> submit(Runnable task)
+														Return type: Future<?>
+														The Runnable does not return a result, so the Future.get() will return null after completion.
+														Cannot throw checked exceptions  /  run() /No return value (void)
+				
+				2. When submitting a Callable: -->> <T> Future<T> submit(Callable<T> task)
+													Return type: Future<T>
+													The Callable returns a result of type T, which you can retrieve using Future.get().
+													Can throw checked exceptions / call()  / Returns a value (T)
+		
+
+why we are creating class as final?  -->> it cannot be subclassed. 
+						Reason: 
+							1. Security -->>  could not alter the behaviour
+							 2. Immutability -->> state cannot be changed via inheritance.
+							 java.lang.String, which is final to ensure immutability and security.
+							 
+							 
+
+Redis over Other -->>			
+		1 - Ultra-Fast Performance
+			Redis is in-memory, meaning data is stored in RAM.
+			Ideal for real-time gameplay, where speed is critical (e.g., move updates, timers).
+		2 -> Pub/Sub Messaging
+			Redis supports publish/subscribe natively.		
+			Enables real-time communication between players without needing a heavy message broker like Kafka or RabbitMQ.
+		3 -> We can implemet Rate Limiting using Redis.  -->>  In service -->> 
+																	Long count = redisTemplate.opsForValue().increment(key); redisTemplate.expire(key, 1min); count <= LIMIT(5 req);
+
+Convert Monolith to microservice -->> 			
+	1. Understand the Existing Monolith
+		Identify business domains and bounded contexts.
+		Map out dependencies between modules.
+		Analyze data models, shared state, and communication patterns.
+		
+	2. Define Microservices Boundaries / Bounded Contexts
+		Use Domain-Driven Design (DDD) to split services by business capability.
+					What DDD Says
+							Instead of thinking in terms of technical layers (like controllers, services, repositories), DDD says:
+							“Split your system based on business capabilities — what exatly your business does.”
+							Each task/context — will become a module or microservice.
+    Define Model and Entities							
+		
+	3. Choose Communication Strategy
+		Synchronous: REST APIs (Spring Boot controllers)
+		Asynchronous: Kafka, RabbitMQ, Redis Pub/Sub
+		Use API Gateway for routing and aggregation.
+
+	 4. Data Management  -->> Use NoSQL (e.g., MongoDB) or SQL based on service needs.
+	 
+	 5. Security
+	 
+
+JWT -->>
+     spring-boot-starter-security    jjwt-api    jjwt-impl	   jjwt-jackson	 
+	 
+	 private final String SECRET_KEY = "your_secret_key";
+		public String generateToken(String username) {
+			return Jwts.builder()
+				.setSubject(username)
+				.setIssuedAt(new Date())
+				.setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60)) // 1 hour
+				.signWith(Keys.hmacShaKeyFor(SECRET_KEY.getBytes()), SignatureAlgorithm.HS256)
+				.compact();
+		}
+		
+		//Validate/extractUser()
+		public String extractUsername(String token) {
+			return Jwts.parserBuilder()
+				.setSigningKey(SECRET_KEY.getBytes())
+				.build()
+				.parseClaimsJws(token)
+				.getBody()
+				.getSubject();
+		}
+		
+		
+		public class JwtRequestFilter extends OncePerRequestFilter {
+			@Autowired
+			private JwtUtil jwtUtil;
+			@Override
+			protected void doFilterInternal(HttpServletRequest request,
+											HttpServletResponse response,
+											FilterChain filterChain) throws ServletException, IOException {
+				final String authHeader = request.getHeader("Authorization");
+				if (authHeader != null && authHeader.startsWith("Bearer ")) {
+					String jwt = authHeader.substring(7);
+					if (jwtUtil.validateToken(jwt)) {
+						String username = jwtUtil.extractUsername(jwt);
+						UsernamePasswordAuthenticationToken authToken =
+							new UsernamePasswordAuthenticationToken(username, null, new ArrayList<>());
+						SecurityContextHolder.getContext().setAuthentication(authToken);
+					}
+				}
+				filterChain.doFilter(request, response);
+			}
+		}		
+		
+		@Configuration
+		@EnableWebSecurity
+		public class SecurityConfig extends WebSecurityConfigurerAdapter {
+			@Autowired
+			private JwtRequestFilter jwtRequestFilter;
+			@Override
+			protected void configure(HttpSecurity http) throws Exception {
+				http.csrf().disable()
+					.authorizeRequests()
+					.antMatchers("/api/auth/**").permitAll()
+					.anyRequest().authenticated();
+				http.addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
+			}
+		}
+
+
+
+Use Socket.IO for real-time communication -->> When a player makes a move (e.g., e4), it is instantly sent to the opponent via WebSocket.
+												This ensures both players see the updated board without refreshing.
+												When a player invites another to a game or joins a public lobby, WebSocket can notify the other player in real time.
+	Backend listens for events like:
+		joinGame
+		makeMove
+		resign
+		gameOver
+		
+
+Long running Transaction -->> create ISSUE: 
+								It lock Database 	-->> Other users can't access locked rows/tables until the transaction finishes
+								Connection can be exhaustion -->>	DB connections stay open too long, causing timeouts
+
+		So Only wrap DB operations in @Transactional
+		Call external services outside the transaction
+		
+
+Project Architecture: -->>
+		"Our project is built on a microservice architecture using Java, Spring Boot, Kafka, DB2, Hibernate, and JPA. 
+		It consists of three main microservices that work together to process and store shipment data efficiently."
+		
+		Microservice 1: Shipment-retrival and create process record & Publishing  -->>
+							Validates and transforms incoming data. / persist / Publishing
+		
+		Microservice 2: Shipment Processing  -->> 
+					This service consumes events from Kafka (published by Microservice 1).
+		
+		Microservice 3: Final Storage  -->> This service consumes the processed shipment events from Kafka.
+											Converts the data into a format suitable for MarkLogic 
+											
+		
+	Benefits of This Architecture
+			Scalability: Kafka decouples services, allowing each to scale independently.
+			Performance: Efficient handling of large volumes of shipment data.
+
+
+@EnableAutoConfiguration -->>   
+						is a core annotation in Spring Boot that tells Spring to automatically configure your application based on the dependencies present in the classpath.
+						Based on what it finds in pom.xml, it automatically configures things for you — like setting up a database connection, web server, etc.
+						
+						1 - 	EnableAutoConfiguration is linked to a class called AutoConfigurationImportSelector.						
+								@Import(AutoConfigurationImportSelector.class)
+								public @interface EnableAutoConfiguration {
+									String ENABLED_OVERRIDE_PROPERTY = "spring.boot.enableautoconfiguration";
+									 Class<?>[] exclude() default {};
+									 String[] excludeName() default {};
+								}
+
+						2 -	So Spring says: “Hey, I need to run AutoConfigurationImportSelector!” -->> 
+								This class has a method called selectImports(...). This is the heart of auto-configuration.								
+								public String[] selectImports(AnnotationMetadata metadata) {
+									// Step 1: Load all auto-configuration class names									
+									// Step 2: Filter them based on conditions									
+								}
+							
+							Where does it get the list of auto-configurations? -->>  META-INF/spring.factories  -->> It contains all possible configurations.
+						
+							Spring configures all the configuration.
+							
+How do you identify if your springBoot app consuming the high CPU on prod enviornment  and how do you resolve it. -->>
+					Step 1: Identify High CPU Usage
+							✅ Use Infrastructure Monitoring Tools
+							Cloud-native tools: AWS CloudWatch, Azure Monitor, GCP Operations							
+							
+							✅ Use Application Monitoring Tools
+							Prometheus + Grafana: 
+							Spring Boot Actuator: Expose metrics via /actuator/metrics							
+							APM tools: Dynatrace, AppDynamics, New Relic, Elastic APM
+					
+					Step 2: Diagnose the Root Cause		 -->> Use Profilers (Even in Prod) -->> VisualVM 
+					Step 3: Resolve High CPU Usage  
+							Code-Level Fixes  -->> Fix infinite loops or recursion/ avoid nested loops
+							Database Optimization -->> Avoid N+1 queries / Use indexes / Optimize joins and queries
+							Logging Optimization  -->> Avoid excessive logging in loops  -->> Use async logging  (AsyncAppender in Logback)
+							Use Caching
+							
+Prometheus is like a smart robot that keeps an eye on your application and system Just Imagine Prometheus as a data collector robot.  -->>
+			Need dependency -->> actuator + prometheus
+					It watches things like:
+						How much CPU your app is using
+						How much memory is being consumed
+						How many requests are coming in
+						How long those requests take
+						It collects this data every few seconds and stores it so you can:
+								See trends over time
+								Get alerts if something goes wrong
+								Create dashboards (usually with Grafana)		
+
+					Imagine Prometheus as a security guard with a notebook. Every few seconds, he walks around your app and writes down:
+						“CPU is at 70%” “Memory is 1.2 GB”	“Request took 500ms”
+						Later, you can open his notebook and say:
+								“Hey, why was CPU so high yesterday at 2 PM?”  “Was memory usage normal last week?”		
+		
+		Note: -->>		
+			/actuator/prometheus → This endpoint will not be available if we dont have prometheus dependency. when we add both actuator and prometheus then we get this URL 
+			Actuator alone exposes general metrics(like CPU usage, memory, request count, etc.), but not in Prometheus format.
+			Prometheus needs metrics in a text format it understands (like http_requests_total{method="GET",...} 42), which is only available via /actuator/prometheus.
+			
+		Flow: -->>
+			Spring Boot/actuator exposes metrics/data(like CPU usage, memory, request count, etc.) at /actuator/prometheus.  
+			Prometheus pulls (scrapes) data from that endpoint regularly.
+			Prometheus stores the data in its own time-series database.
+			You can visualize and analyze the data using Grafana.
+			
+		application.yml -->> 
+			management.endpoints.web.exposure.include=prometheus
+			management.endpoint.prometheus.enabled=true
+			management.metrics.export.prometheus.enabled=true
+
+Dynatrace vs Prometheus  -->>
+				Prometheus is Open-source monitoring tool  and   Dynatrace is Commercial APM (Application Performance Monitoring)
+				               Pulls metrics from endpoints                   Uses OneAgent to auto-instrument apps
+					Visualization -->>	Needs Grafana	                     Built-in dashboards and AI insights
+				
+				Dynatrace is more powerful for enterprise-grade monitoring 
+				
+	Dynatrace OneAgent  -->> is like a smart assistant that you install on your server or container where your app instaled/running. Once installed, it automatically:
+							Detects your running applications (like Spring Boot)
+							Monitors performance (CPU, memory, response time, errors)
+							Tracks requests across services (distributed tracing)
+							Collects logs, metrics, and traces
+							Sends all this data to the Dynatrace dashboard
+							You don’t need to manually instrument your code — OneAgent does it for you.
+			
+			Imagine you deploy your Spring Boot app on a Linux server or Docker container. You install OneAgent there, and it:
+				It Automatically discovers: 	Web requests +	Database calls  +	External service calls	Starts collecting data like: CPU usage +	Memory usage +	Request latency
+				Errors and exceptions
+				Sends data to Dynatrace UI for visualization and alerting
+				
+	Dynatrace config with springBoot:
+	     application.yml -->>  these values we can get from your Dynatrace account.		 
+				dynatrace.environment-id=your-environment-id
+				dynatrace.api-token=your-api-token
+
+
+How you manage DB when you convert monolithic to microservice -->> liquibase is one tool to migrate one table to anther table in differnt DB
+
+		You have a big warehouse (your monolithic database) where everything is stored together — orders, customers, inventory, payments — all in one place.
+				Now, you decide to split this warehouse into smaller specialized shops (microservices). 
+				One shop only handles orders, another handles customers, and so on. Each shop needs its own storage room (database).
+
+					Migrating the Orders Table
+						Let’s say your monolithic DB has a table called orders. You want to move this to the Order Service’s database (order_db).
+						Here's What You Do:
+							Create a Blueprint (Changelog File),	You write a file that says:
+								"Hey Liquibase, please create a table called orders with these columns: id, customer_id, status, created_at."
+								Liquibase Reads the Blueprint When your Spring Boot app starts, Liquibase checks:
+								Is this change already done? (It looks in the DATABASECHANGELOG table)
+								If not, it runs the SQL to create the table.
+								Liquibase Marks It Done
+								It writes in its logbook:
+								"ChangeSet #1 by Ravi: orders table created ✅"
+								
+		Step-by-Step Migration Strategy  -->>	
+				Step 1: Identify Bounded Contexts / know the boundry
+						Break down your monolith into domains (e.g., Orders, Customers, Inventory).Each domain becomes a microservice with its own DB.
+				
+				Step 2: Set Up Independent Databases
+						Create separate databases like order_db, customer_db, etc. Configure each Spring Boot service to connect to its own DB.
+				
+				Step 3: Use Migration Tools -->> Use Flyway or Liquibase to manage schema changes.
+				
+				Step 4: Migrate Data -->> Use ETL tools or custom scripts to move data from the monolith DB to microservice DBs. Kafka can help sync data in real-time if needed.
+				
+
+
+Managing live monolithic services during a transition to microservices — without disturbing clients -->>
+				1- Replace one branch at a time.. If monolithic is a tree. Ensure clients/users don’t notice any disruption. Avoid a “big bang” switch — which is risky.
+					Start by moving the Order module to a microservice. Keep the rest (Customer, Inventory, etc.) in the monolith for now.
+				
+				2- Use an API Gateway or Routing Layer -->> 
+						Put a gateway in front of your monolith and microservices. What it does:
+						Routes requests to the monolith or microservice based on the endpoint. Clients still call the same URL — they don’t know what’s behind it.
+						
+				3. Sync Data Between Monolith and Microservices -->> 
+						While both systems are running:
+						Use Kafka or database sync scripts to keep data consistent.
+						For example, if an order is created in the monolith, publish it to Kafka so the microservice also gets it.
+						
+				4. Gradually Redirect Traffic -->> Once the microservice is stable:
+						Start routing more traffic to it. Eventually, turn off the monolith’s version of that module.
+				
+				5. Monitor Everything  -->> Use tools like: Prometheus + Grafana for metrics
+						ELK Stack for logs and tracing
+						
+			
+			Example: Let’s say your monolith has an /orders endpoint. -->> 
+						You build a new Order microservice with its own DB (order_db).
+						Deploy the microservice.
+						Update the API Gateway to route /orders to the microservice.
+						Keep syncing data between monolith and microservice (if needed).
+						Monitor performance and errors.
+						Once confident, remove the monolith’s /orders logic.
+						
+
+synchronized vs ReentrantLock   -->> 
+			synchronized (Built-in Lock)
+					Like a basic lock on a bathroom door — only one person can enter at a time.
+					Automatically released when the thread exits the block or method. Simple to use, but less flexible.						
+							public synchronized void increment() {
+								count++;
+							}
+							public int getCount() {
+								return count;
+							}
+					
+			ReentrantLock (Advanced Lock)
+					Like a smart lock — you can:
+					Try to acquire it without waiting. Set a timeout. Interrupt a waiting thread. 
+					Lock/unlock manually.
+					More powerful and flexible, but you must release it manually.					
+					   
+						private int count = 0;
+							private final ReentrantLock lock = new ReentrantLock();
+							public void increment() {
+								lock.lock(); // manually acquire
+								try {
+									count++;
+								} finally {
+									lock.unlock(); // manually release
+								}
+							}
+							public int getCount() {
+								return count;
+							}
+					
+		    Example: tryLock()    -->> ReentrantLock can do this BCOZ it has tryLock() feature: sync does't						
+					private int count = 0;
+					private final ReentrantLock lock = new ReentrantLock();
+					public void tryIncrement() {
+							if (lock.tryLock()) { // Try to acquire lock without waiting
+								try {
+									count++;
+								} finally {
+									lock.unlock();
+								}
+							} else {
+								System.out.println("Lock is busy, doing something else...");
+							}
+						}				
+			Example: Timeout Example: 	-->>		
+						// Try to acquire the lock for up to 2 seconds
+									if (lock.tryLock(2, TimeUnit.SECONDS)) {
+										try {
+											System.out.println(Thread.currentThread().getName() + " got the lock");
+											Thread.sleep(3000); // Simulate long task
+										} finally {
+											lock.unlock();
+										}
+									} else {
+										System.out.println(Thread.currentThread().getName() + " could not get the lock, doing something else");
+									}
+									
+			interrupt a thread waiting -->>			
+				You Need Both:
+						1. lock.lockInterruptibly();
+							This tells the thread:
+							“Try to acquire the lock, but allow interruption while waiting.” is like saying: “I’m okay with being interrupted while waiting in line.”
+
+						2. t2.interrupt();
+							This is the actual signal that interrupts the thread while it's waiting.  So It is like someone tapping you on the shoulder and saying:
+							“Hey, stop waiting — we’re leaving.”
+						
+						If you don’t use lockInterruptibly(), then even if you call t2.interrupt(), the thread won’t respond — it will just keep waiting.
+				
+				
+						lock.lockInterruptibly(); // Wait for lock but allow interruption
+						try {
+							System.out.println(Thread.currentThread().getName() + " acquired the lock");
+						} finally {
+							lock.unlock();
+						}
+						Main Class: 						
+							t1.start();
+							Thread.sleep(100); // Let t1 acquire the lock first
+							t2.start();
+							Thread.sleep(1000); // Give t2 some time to wait
+							t2.interrupt(); // Interrupt t2 while it's waiting for the lock
+								
+				Why synchronized can’t do this:
+						synchronized always waits — it can’t skip if the lock is busy.
+						You can’t interrupt a thread waiting on synchronized.
+						You can’t set a timeout with synchronized.
+						
+	
+	"Lock Specific Sections" -->>
+			public class Locker {
+				private final ReentrantLock lock1 = new ReentrantLock();
+				private final ReentrantLock lock2 = new ReentrantLock();
+
+				public void accessDrawer1() {
+					lock1.lock();
+					try {
+						System.out.println(Thread.currentThread().getName() + " is using Drawer 1");
+						Thread.sleep(2000);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					} finally {
+						lock1.unlock();
+					}
+				}
+
+				public void accessDrawer2() {
+					lock2.lock();
+					try {
+						System.out.println(Thread.currentThread().getName() + " is using Drawer 2");
+						Thread.sleep(2000);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					} finally {
+						lock2.unlock();
+					}
+				}
+			}
+			
+			Main Class -->>				
+				Locker locker = new Locker();
+				Thread t1 = new Thread(locker::accessDrawer1, "Thread-1");
+				Thread t2 = new Thread(locker::accessDrawer2, "Thread-2");
+
+				t1.start();
+				t2.start();
+				
+		What Happens? -->> 
+		Thread-1 locks Drawer 1 (lock1)
+		Thread-2 locks Drawer 2 (lock2)
+		Both threads run at the same time because they’re locking different sections of the object.
+		
+		With synchronized, if you did: -->> Then both methods would lock the whole object, and only one thread could run at a time
+		
+		
+		ReentrantLock	-->> LOck Only the block where it's used	    Yes run in parallel (if different locks)
+		synchronized	-->> Whole object                               Not run in parallel
+		
+		Note:  if we have 2 method and we are using the same reenterend lock lets say lock then it will be lock to object not the method
+				Both methodA() and methodB() use the same lock object.
+				If Thread 1 is in methodA(), and Thread 2 tries to enter methodB(), it will wait until the lock is released.
+				So the lock is not on the method, but on the shared lock object.
+
+
+Optional   -->>
+
+			@GetMapping("/foos")
+			public String getFoos(@RequestParam Optional<String> id) {
+				return "ID: " + id.orElseGet(() -> "not provided");
+			}
+				If you call /foos?id=123, it returns:   -->> ID: 123
+				If you call /foos without the id parameter, it returns:  -->> ID: not provided
+
+
+1. @OneToOne and @ManyToOne
+		Default Fetch Type: EAGER
+		
+2. @OneToMany and @ManyToMany
+		Default Fetch Type: LAZY
+		
+
+externalization     -->> 				
+				Externalization means moving configuration or data out of your code into external files like .properties, .yaml, or environment variables. This makes your app:
+						Easier to configure for different environments (dev, test, prod)
+						More secure (e.g., keeping secrets out of code)
+						More flexible (you can change behavior without redeploying)
+						
+							Step 1: Add to application.properties
+								app.welcome=Welcome to Ravi's Spring Boot App!   
+								
+							Step 2: Inject It Using @Value	-->>							
+									@Value("${app.welcome}")
+									private String welcomeMessage;
+
+									@GetMapping("/welcome")
+									public String getWelcomeMessage() {
+										return welcomeMessage;
+									}
+
+							Why It’s Useful
+									You can change app.welcome in application.properties without touching Java code.
+									You can use different files for different environments:
+									application-dev.properties
+									application-prod.properties
+									
+															
+				Internationalization -->>
+						MessageSource is a Spring interface that allows you to resolve messages from resource bundles (like messages.properties) based on a locale. 				
+				
+							@Bean
+							public MessageSource messageSource() {
+								ResourceBundleMessageSource source = new ResourceBundleMessageSource();
+								source.setBasename("messages");
+								source.setDefaultEncoding("UTF-8");
+								return source;
+							}
+						
+						Inject -->> 	Controller
+							("/greet")
+							@Autowired
+							private MessageSource messageSource;
+							public String getGreeting(Locale locale) {
+								return messageSource.getMessage("greeting", null, locale);
+							}							
+						
+						curl -H "Accept-Language: hi" http://localhost:8080/greet
+
+
+String Immutability Help the Constant Pool -->>
+				String is immutable, meaning once a String object is created, it cannot be changed. Any operation that seems to modify a string actually creates a new String object.
+				
+				String Constant Pool -->>  save memory and improve performance.
+				
+						String a = "Ravi";
+						String b = "Ravi";    -->> Both a and b point to the same object in the pool — no duplication.
+						
+						2. Why Is This Safe?
+								Because strings are immutable, you can't change "Ravi" once it's created.
+								So Java knows:
+								“If someone else uses "Ravi", it’s safe — it won’t be changed.”
+						
+						3. What If Strings Were Mutable?							
+							String a = "Ravi";
+							String b = "Ravi";
+							a.setCharAt(0, 'S'); // Hypothetical mutable method
+									Now b also would also become "Savi" — which is wrong and unsafe.
+
+
+Java 11,17 with Spring Boot 3.x for best performance, compatibility, and long-term support.
+Upgrade to Java 21 only if you're using Spring Boot 3.2+ and want to leverage virtual threads or structured concurrency.	
+
+Jav 17: -->>      
+		Java 17 Switch Expression Enhancements :  Switch can return a value and use arrow syntax (->)
+					String fruit = "apple";
+					String result = switch (fruit) {
+						case "apple", "banana" -> "It's a fruit";
+						case "carrot" -> "It's a vegetable";
+						default -> "Unknown item";
+					};
+					System.out.println(result); // Output: It's a fruit
+					
+				This is like saying:
+					“If the item is apple or banana, say ‘Fruit’.
+					If it’s book, say ‘Reading material’.
+					Otherwise, say ‘Unknown’.”
+					
+		
+		What is a Sealed Class? -->>
+				A sealed class is like a VIP club — only specific people are allowed to enter.
+						In Java terms:
+							You create a class.
+							You control which other classes are allowed to extend it.
+							No one else can extend it — only the ones you permit.
+					
+					Why Use It?
+						To limit inheritance.
+						To make your code more secure and predictable.
+						 useful for switch and pattern matching.
+				
+				public sealed class Animal permits Dog, Cat {    -->> This means: Only Dog and Cat can extend Animal.				
+				
+				}						
+				
+				final class Dog extends Animal {   -->> You must make them final, sealed, or non-sealed.
+					void bark() {
+						System.out.println("Woof!");
+					}
+				}
+
+				final class Cat extends Animal {
+					void meow() {
+						System.out.println("Meow!");
+					}
+				}
+				
+				Imagine Animal is a club that only allows Dog, Cat, and Bird.
+				Dog is final → No one can create a new type of dog.
+				Cat is sealed → Only specific cats are allowed.
+				Bird is non-sealed → Anyone can create a new bird type.
+				
+		New RandomGenerator API -->>
+				The old Random class had limited algorithms and was not thread-safe.
+				The new API gives you more control, better performance, and multiple algorithms to choose from.				
+						
+				 // Create a random generator using a specific algorithm
+					RandomGenerator generator = RandomGeneratorFactory.of("L64X128MixRandom").create();
+
+					// Generate random numbers
+					System.out.println("Random int: " + generator.nextInt());
+					System.out.println("Random int (0-99): " + generator.nextInt(100));
+					System.out.println("Random double: " + generator.nextDouble());
+					
+							Some generators are thread-safe, others are not — you can choose based on your needs.
+							Old Java gave you only one basic machine.
+							New Java lets you choose from many machines 
+						
+						These are different algorithms used to generate random numbers
+							"L64X128MixRandom" (fast and high-quality)
+							"Xoshiro256PlusPlus"
+							"SplittableRandom"
+
+		
+java 21 / springBoot 3.2
+			1- Virtual Threads: Ideal for handling thousands of concurrent requests in microservices. -->>
+						Simpler concurrency model—no need for reactive programming unless needed.
+						Works well with Spring Boot 3.2+ and Java 21.
+
+						ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+						executor.submit(() -> {
+							System.out.println("Handled by virtual thread: " + Thread.currentThread());
+						});
+				
+					Example 	:
+							You have waiters (threads) serving customers (requests).
+							In traditional Java, each waiter can serve only one customer at a time.
+							If the customer is waiting for food (e.g., database or API response), the waiter just stands there doing nothing.
+						
+						Virtual Threads (Java 21) -->>
+						When a customer is waiting for food, the virtual waiter pauses and resume and come back when the food is ready. this pause and resume done by JVM	
+						The paused waiter gets resumed automatically and comes back to serve the customer.
+						
+						Traditional threads = heavy, limited in number.
+						Virtual threads = lightweight, you can create thousands without slowing down your app. 
+						You don’t need complex reactive programming.faster, cheaper, and easier to maintain.
+
+
+			2- Pattern Matching for switch -->> in older java we need manual typecast and if-else ex: we can not achieve this using old java						
+
+						Object item = 42;
+						String result = switch (item) {
+							case String s -> "It's a string: " + s;
+							case Integer i -> "It's a number: " + i;
+							case null -> "It's null!";
+							default -> "Unknown type";
+						};
+
+						System.out.println(result);
+						
+					With pattern matching, Java is doing:
+					It checks the type of the object.
+					It extracts the value if it matches.
+					It executes the right block of code.
+					
+					input is an Object, but it holds a String.
+					The switch checks:
+					Is it a String? ✅ Yes → extract it as s and use it.
+					If it were an Integer, it would match the second case.
+					If it’s null, it matches the third case.
+					If none match, it goes to default.
+					
+					You don’t need to write if (obj instanceof String) and then cast. You write cleaner, safer, and more readable code.
+		
+
+			3- What Are Scoped Values?  -->>
+					Imagine a waiter (virtual thread) serving a customer:
+					The waiter carries a notepad with the customer's name written on it.
+					While serving, the waiter can refer to the notepad to remember who the customer is.
+					Once the service is done, the waiter throws away the notepad—it was only needed during that service.
+						That notepad is like a Scoped Value—a temporary, thread-local piece of data that’s safe, clean, and automatically discarded after use.
+							
+							ScopedValue<String> currentUser = ScopedValue.newInstance();
+							ScopedValue.runWhere(currentUser, "Ravi", () -> {
+								System.out.println("Serving user: " + ScopedValue.get(currentUser));
+							});
+								What’s Happening:
+										You create a ScopedValue called currentUser.
+										You run a block of code where currentUser is set to "Ravi".
+										Inside that block, you can access the value safely.
+										Outside the block, the value is gone—no memory leaks, no confusion.
+
+			4- Sequenced Collections -->> ArrayList LinkedHashSet TreeSet implement this interface (where order is there)  not in HashSet bcoz oder is not there.
+					Sequenced Collections are a new feature in Java 21 that give you more control over the order of elements in collections like lists, sets, and maps.
+					They introduce a new interface called SequencedCollection, which guarantees:
+						A defined order of elements
+						Easy access to the first and last elements
+						Ability to add at the beginning or end
+					
+					You can add someone at the front or at the end.
+					You can see who’s first and who’s last.
+					You can remove from either end.
+							
+						SequencedCollection<String> names = new ArrayList<>();
+						names.addFirst("Ravi");
+						names.addLast("Chand");
+						System.out.println(names.getFirst()); // Ravi
+						System.out.println(names.getLast());  // Chand    removeFirst() / removeLast()
+					
+					Note: This works because ArrayList now implements SequencedCollection in Java 21.
+						Works with List, Set, and Map types that support ordering
+					
+					 1 - Improved Readability
+					 2 - Consistency Across Collection Types whose do not have index but have order.
+							Not all collections support index-based access:
+									List ✅ supports index
+									LinkedHashSet, TreeSet ❌ do not support index
+									But with SequencedCollection, you can still do
+					
+					
+Suppose you have schemas: sales_db, hr_db, and inventory_db, and you want to explore hr_db:   -->> 		
+							SHOW DATABASES;
+							USE hr_db;
+							SHOW TABLES;
+							DESCRIBE employees;
+							SELECT * FROM employees LIMIT 10;
+
+
+Oracle:				-->>
+			VARCHAR is a data type that was once supported but is now reserved for future use. if we use varchar it internally use vaechar2 only.
+			VARCHAR2 is the recommended data type for storing variable-length strings.				
+					CREATE TABLE users (
+					  name VARCHAR2(50)
+					);
+			
+			A view is like a virtual table. It shows data from one or more tables but doesn't store it physically.					
+					CREATE VIEW emp_view AS
+					SELECT name, salary FROM employees WHERE salary > 50000;
+					
+			DELETE, TRUNCATE, and DROP -->>
+					1. DELETE – Erase Specific Lines -->>
+							What it does: Removes specific rows (records) from the table.
+							Can undo (ROLLBACK): ✅ Yes, if not committed.
+							Structure remains: ✅ Yes, table stays as it is.
+							
+							 EX: DELETE FROM employees WHERE department = 'Sales'; -->> This erases only the employees from the Sales department.
+
+					2. TRUNCATE – Tear Out All Pages
+							What it does: Removes all rows from the table quickly.
+							Can undo (ROLLBACK): ❌ No, it's permanent.
+							Structure remains: ✅ Yes, table stays but is empty.
+							
+							EX: TRUNCATE TABLE employees;   -->> This clears the entire Emp Table but keeps the Emp itself.
+							
+					3. DROP  -->>
+							Deletes the entire table (structure + data).
+							
+			
+			 What is a SEQUENCE? -->> A sequence generates unique numbers, often used for primary keys.
+								CREATE SEQUENCE emp_seq START WITH 1 INCREMENT BY 1;
+								  Use it: INSERT INTO employees (emp_id, name) VALUES (emp_seq.NEXTVAL, 'Ravi');
+								  
+			
+			What is a TRIGGER?  -->> A trigger is a piece of code that runs automatically when something happens in the database (like insert, update, delete).								
+								CREATE TRIGGER log_insert
+								AFTER INSERT ON employees
+								FOR EACH ROW
+								BEGIN
+								  INSERT INTO log_table (action) VALUES ('New employee added');
+								END;
+								
+			What is a CURSOR in PL/SQL?  -->> cursor like a bookmark or a pointer that helps you go through a list of records one by one in a database.
+												when you run a query that returns multiple rows, you can’t process all of them at once in a loop. 
+												So, you use a cursor to fetch and process each row individually.												
+												
+												CURSOR emp_cursor IS
+													SELECT name, salary FROM employees;												
+												
+														BEGIN
+														  OPEN emp_cursor;
+														  LOOP
+														  
+			What is the difference between FUNCTION and PROCEDURE?  -->>
+								FUNCTION returns a value.
+								PROCEDURE performs an action but doesn’t return a value directly. (can return via OUT params)
+								
+								Used in SQL Select: function is yes but procdure is  NO
+
+		Oracle specific Feature: -->>
+			Oracle has its own procedural language called PL/SQL, which is tightly integrated with SQL. It allows you to write complex business logic directly in the database.
+				Example: Writing stored procedures, functions, triggers, and packages using PL/SQL.
+				
+				Materialized Views in Oracle -->>
+						Oracle supports materialized views, which store the result of a query physically and can be refreshed periodically.
+						Useful for performance optimization in reporting and data warehousing.
+						
+				Flashback Technology -->> 
+						Oracle provides Flashback Query, Flashback Table, and Flashback Database features to view or restore data to a previous state without restoring from backup.
+						Very useful for recovering from accidental data changes.
+						
+				Real Application Clusters (RAC)
+						Oracle RAC allows multiple instances of Oracle to run on different servers but access the same database, providing high availability and scalability.
+						Oracle RAC allows multiple computers (nodes) to run Oracle Database together, sharing the same data. This setup provides:
+							High availability (if one computer fails, others keep working)
+							Scalability (you can add more computers to handle more users)
+							Load balancing (distributes work across computers)
+							
+							Imagine a bank with one central database (like a vault) and multiple counters (like computers or nodes):
+								All counters access the same vault.
+								If one counter shuts down (power failure), others still serve customers.
+								If more customers come, the bank adds more counters to serve faster.
+								
+							A large e-commerce site like Amazon or Flipkart:
+								Thousands of users placing orders.
+								Oracle RAC ensures the database handles all requests smoothly.
+								If one server crashes, others keep the site running.
+
+				What is Oracle Data Guard? -->>
+						Oracle Data Guard is a disaster recovery solution. It keeps a copy of your main database (called the primary) 
+						in another location (called the standby), so if something goes wrong with the main one, you can switch to the backup and continue working.
+						Data Guard automatically copies changes from primary to standby.
+						If the primary fails, you can switch over to the standby and keep working.
+
+
+
+1. GenerationType.AUTO -->>
+			@Id
+			@GeneratedValue(strategy = GenerationType.AUTO)   -->> In this JPA will automatically choose the most appropriate strategy based on the 
+																	database dialect and JPA provider (like Hibernate)..
+																	How It Works -->>
+																					When you use AUTO, JPA delegates the decision to the persistence provider
+																					(e.g., Hibernate), which chooses one of the following strategies based on the database:
+																							
+																							MySQL	-->>      IDENTITY
+																							PostgreSQL	-->>  SEQUENCE
+																							Oracle	    -->>  SEQUENCE
+																							H2          -->>  SEQUENCE or IDENTITY
+																							Others	Depends on dialect
+
+2. GenerationType.IDENTITY
+				GenerationType.IDENTITY is one of the strategies used by JPA to generate primary key values for entities. 
+				It relies on the database's identity column feature, such as AUTO_INCREMENT in MySQL 
+						
+					@Id
+					@GeneratedValue(strategy = GenerationType.IDENTITY)
+					private Long id;
+					
+					DB: -->>						
+							CREATE TABLE user (
+								id BIGINT AUTO_INCREMENT PRIMARY KEY,
+								username VARCHAR(255)
+							);
+
+
+3. GenerationType.SEQUENCE
+				Description: Uses a database sequence object to generate IDs. Common in Oracle, PostgreSQL.
+				Use Case: When your DB supports sequences and you want to control them.			
+				
+						@Id
+						@GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "order_seq")
+						@SequenceGenerator(name = "order_seq", sequenceName = "order_sequence", allocationSize = 1)
+						private Long id;
+							
+							order_sequence - this will be genetated by manually
+							The generator name (order_seq) acts as a link between @GeneratedValue and @SequenceGenerator
+
+4. GenerationType.TABLE
+				Description: Uses a separate table to simulate sequence generation. It's database-independent but slower.
+				Use Case: When your DB doesn’t support sequences or identity columns.
+				
+
+Spring Cloud Config -->>
+				create a repo and applicaton.yml file. -->> due to fallback method it will call if client send any other yml name.
+				Basic Components  -->>
+						Spring Cloud Config Server – Serves configuration properties from a Git repository.
+						Spring Cloud Config Client – Fetches configuration from the server.
+						
+								Config Server Setup -->> 
+										pom -->>	<artifactId>spring-cloud-config-server</artifactId>
+										
+										Main -->> @EnableConfigServer
+										application.yml  -->> 
+															spring.cloud.config.server.git:
+																	  uri: https://github.com/your-username/config-repo
+																	  
+								Config Client Setup -->> 
+										pom -->> <artifactId>spring-cloud-starter-config</artifactId>
+										bootstrap.yml for Client -->> 
+													application. name: xyz
+													spring.cloud.config:
+														  uri: http://localhost:8888
+										Controller: 
+												 @Value("${my.message}")
+												 private String message;
+										 
+				
+				How It Works -->>
+							1 - The client fetches config from the server at startup -->>
+									When your Spring Boot client application starts, it doesn't read its configuration from its own application.yml file. 
+									Instead, it contacts the Config Server (running on http://localhost:8888 or wherever you've hosted it).
+									It uses the above bootstrap.yml file to know:
+										The name of the application (spring.application.name) - demo-client
+										The location of the config server (spring.cloud.config.uri)
+									
+									So, when the client starts, it create and sends a request like:  GET http://localhost:8888/demo-client/default  default - profile when no profile.
+										This request is sent to the Config Server, which then:
+												Looks for demo-client.yml or application.yml in the Git repo -->> if we pass xyz then also we get the correct response 
+												    Because Spring Cloud Config Server has a fallback mechanism:
+														It first looks for a file named xyz.yml (or .properties) in the Git repo.
+														If it doesn't find it, it falls back to application.yml — which is treated as shared config for all applications.
+												Returns the configuration as a JSON response
+									
+							2 - The server reads config from Git and serves it via REST. if xyz.yml is in repo then it will override the application.yml else return application.yml
+							Note - You can change config in Git and refresh the client using /actuator/refresh.
+
+
+CI (Continuous Integration): Automatically builds and tests your code whenever you push changes.
+CD (Continuous Delivery/Deployment): Automatically or manually deploys your code to a server/environment after it passes tests.
+					
+					Basic CI/CD Pipeline Stages -->> 
+							Build: Compile the code.
+							Test: Run unit/integration tests.
+							Deploy: Push the code to staging or production.
+							
+					# .github/workflows/firstWorkflow.yml   -- this file need to comes under this structure only.
+							
+								on:
+								  push:
+									branches:
+									  - main								
+								
+								on:
+								  workflow_dispatch:  # Allows manual trigger from GitHub UI								
+								
+								jobs:
+									build-test:
+										runs-on: ubuntu-latest
+										steps:
+										  - name: Checkout code
+											uses: actions/checkout@v3
+
+										  - name: Set up JDK
+											uses: actions/setup-java@v3
+											with:
+											  java-version: '17'
+
+										  - name: Build with Maven
+											run: mvn clean install
+
+										  - name: Run tests
+											run: mvn test
+										
+								
+									deploy-staging:
+										needs: build-test
+										runs-on: ubuntu-latest
+										steps:
+										  - name: Deploy to Staging
+											run: echo "Deploying to staging server..."
+
+global exception handling  -->>
+
+			public class ResourceNotFoundException extends RuntimeException {
+				public ResourceNotFoundException(String message) {
+					super(message);
+				}
+			}
+
+
+			@ControllerAdvice
+			public class GlobalExceptionHandler {
+			
+						@ExceptionHandler(ResourceNotFoundException.class)
+						public ResponseEntity<String> handleResourceNotFound(ResourceNotFoundException ex) {
+							return new ResponseEntity<>(ex.getMessage(), HttpStatus.NOT_FOUND);
+						}
+				        
+						@ExceptionHandler(ResourceNotFoundException.class)
+						public ResponseEntity<Map<String, Object>> handleResourceNotFound(ResourceNotFoundException ex) {
+							Map<String, Object> errorBody = new HashMap<>();
+							errorBody.put("timestamp", LocalDateTime.now());
+							errorBody.put("status", HttpStatus.NOT_FOUND.value());
+							errorBody.put("error", "Resource Not Found");
+							errorBody.put("message", ex.getMessage());
+							errorBody.put("path", "/api/shipments/{id}"); // You can dynamically set this if needed
+
+							return new ResponseEntity<>(errorBody, HttpStatus.NOT_FOUND);
+						}
+			}
+			
+
+service registry and discovery   -->> 
+					Scenario: Two Microservices
+							Service-1: Order Service
+							Service-2: Shipment Service
+							Let’s say Service-1 needs to call a REST endpoint in Service-2 to get shipment details
+								Service-2 has two instances running:
+									Instance 1: http://localhost:8081
+									Instance 2: http://localhost:8082
+							
+					Without Service Registry (Manual Configuration):							
+							In Service-1, you configure a load balancer with these two URLs manually.
+						Problem:
+								If you scale up Service-2 (add more instances), you must manually update Service-1’s config.
+								If an instance goes down, Service-1 might still try to call it and fail.
+								This becomes hard to manage as the number of services and instances grows.
+							
+					With Service Registry & Discovery						
+							How It Works:
+									Service-2 instances register themselves with the Service Registry (e.g., Eureka).
+									Service-1 doesn’t need hardcoded URLs. It just asks the registry:
+										“Give me an instance of shipment-service.”
+									The registry returns a healthy instance (e.g., http://localhost:8082).									
+									
+								Benefits:
+									No manual config in Service-1.
+									Auto-scaling: Add/remove instances of Service-2 anytime.
+									Resilience: Only healthy instances are returned.
+
+							
+				
+		NOTE: 						
+			A service registry is like a directory or phonebook where all microservices register themselves when they start.
+				It keeps track of which services are running, how many instances, and where they are located (host + port).
+				Example:
+				When shipment-service starts, it tells Eureka:
+				“Hey, I’m running at localhost:8081. Please add me to the list.”
+			
+			Service Discovery
+						Service discovery is the process where a service (like order-service) asks the registry to find another service (like shipment-service) so it can talk to it.
+						Example:
+						order-service asks Eureka:
+							Eureka replies: “Here are the available instances: localhost:8081, localhost:8082.”
+		
+		Service Registry (Eureka Server)	@EnableEurekaServer	 -->> 	    <artifactId>spring-cloud-starter-netflix-eureka-server</artifactId>											
+										eureka:
+										  client:
+											register-with-eureka: false
+											fetch-registry: false
+		
+		Client Service (Eureka Client)   @EnableEurekaClient -->> <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>		
+										eureka:
+										  client:
+											service-url:
+											  defaultZone: http://localhost:8761/eureka/
+
+		Spring Cloud BOM -->> ensures that all Spring Cloud modules (like Eureka Server, Eureka Client, Config Server, Gateway, etc.) 
+								use versions that are tested to work well together. Without BOM, you might accidentally mix incompatible versions
+								if we are giving BOM in <dependencyManagement> then no need to specify the version of eureka-server. BOM usually put in registry.
+
+
+
+OAUTH:
+		Below setup allows users to log in to your springBoot app using their Google account 
+			instead of creating a separate username and password for your springBoot app.
+			
+			Step 1: Create a Google OAuth Client
+					Go to Google Cloud Console.  -->> https://console.cloud.google.com
+					Create a new project (or use an existing one). -->> for some details +  Add scopes like email, profile (which user info u want to share to app)
+					Navigate to APIs & Services > Credentials.
+					Click Create Credentials > OAuth 2.0 Client ID.					
+					Set Authorized redirect URIs to:  http://localhost:8080/login/oauth2/code/google  -->> google redirect to this URL once it verify the user credentials
+					Save and note the Client ID and Client Secret.
+			
+			Step 2: Create a Spring Boot App with below dependencies
+					Spring Web
+					Spring Security
+					OAuth2 Client   -->> <artifactId>spring-boot-starter-oauth2-client</artifactId>
+										What it does: 
+											Enables your app to redirect users to Google for login.
+											Handles the OAuth2 flow (authorization code → access token).
+											Automatically fetches user profile info from Google.											
+			
+			Step 3: Configure application.yml or application.properties					
+					spring:
+					  security:
+						oauth2:
+						  client:
+							registration:
+							  google:
+								client-id: YOUR_GOOGLE_CLIENT_ID
+								client-secret: YOUR_GOOGLE_CLIENT_SECRET
+								scope: profile, email  -->> If you don’t request these scopes: You’ll only get a generic user ID (sub), which is not very useful for most apps.
+							provider:
+							  google:
+								authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
+								token-uri: https://oauth2.googleapis.com/token
+								user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
+								user-name-attribute: sub
+								
+						Note: explain provider step-->>
+								authorization-uri -->>  URL: https://accounts.google.com/o/oauth2/v2/auth
+										What it does:
+											This is the URL where Spring Security redirects the user to Google for login. 
+											Purpose: User clicks "Login with Google" → Redirected to Google (authorization-uri), for user to log in and grant permissions
+											once the user loggedIn to google and grants permission, Google sends a temporary authorization code to your app. 
+								
+								token-uri  -->> URL: https://oauth2.googleapis.com/token
+										What it does:
+											Once app/spring-security get the temp auth code from google from above step:
+											Spring Security then sends this temp code to the token-uri to get an access token. by a POST req with below body:													
+													POST https://oauth2.googleapis.com/token
+													Content-Type: application/x-www-form-urlencoded
+													client_id=YOUR_CLIENT_ID
+													client_secret=YOUR_CLIENT_SECRET
+													code=AUTHORIZATION_CODE_FROM_GOOGLE
+													redirect_uri=http://localhost:8080/login/oauth2/code/google  -->> same URL which we given on google console
+													grant_type=authorization_code  -->> this is fixed for this process
+
+											Now our app get the access token.
+											
+								user-info-uri  -->>  https://www.googleapis.com/oauth2/v3/userinfo
+										What it does:
+												Once Spring Security has the access token, it uses this URL to fetch the user's profile information.												
+												Purpose: Get user details like name, email, profile picture, etc.
+												
+												
+								user-name-attribute
+										What it does:
+												This tells Spring Security which field in the user info response should be used as the unique identifier for the user.
+												Value: sub (short for "subject")
+												Why sub?: Google returns a field called sub which is a unique ID for the user across all Google services.														
+													
+													User-Info response: 
+															{
+															  "sub": "123456789012345678901",
+															  "name": "Ravi Chand",
+															  "given_name": "Ravi",
+															  "family_name": "Chand",
+															  "picture": "https://lh3.googleusercontent.com/a-/AOh14...",
+															  "email": "ravi.chand@gmail.com",
+															  "email_verified": true,
+															  "locale": "en"
+															}
+															
+			Step 4: Create a Simple Controller -->>					
+							@RestController
+							public class HomeController {
+								@GetMapping("/")
+								public String home() {
+									return "Welcome to the app. <a href='/oauth2/authorization/google'>Login with Google</a>";
+								}
+								Note: this method returns a simple HTML string with a login link. This is the link that triggers the Google OAuth2 login flow.									  
+									  /oauth2/authorization/google is a Spring Security-provided endpoint.
+											When the user clicks this link:
+												Spring Security redirects them to Google’s login page.After login, Google redirects them back to your app.
+												Spring Security handles the rest (token exchange, user info, etc.).
+
+								@GetMapping("/secured")
+								public String secured(Principal principal) {
+									return "Hello, " + principal.getName();
+								}
+							}
+			
+			Step 5: Secure the App with Spring Security  -->> Create a SecurityConfig class:
+							@Configuration
+							@EnableWebSecurity
+							public class SecurityConfig {
+
+								@Bean
+								public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+									http
+										.authorizeHttpRequests(auth -> auth
+											.requestMatchers("/", "/error").permitAll()
+											.anyRequest().authenticated()
+										)
+										.oauth2Login();   // due to this if user call /secure first then spring checks if the user is logged in. If not, it automatically redirects 										
+									return http.build();  // to /oauth2/authorization/google to auth,Google shows the login screen. After login, Google redirects back to your app.
+								}                         // Spring Security completes the login and now land to /secure.
+							}
+
+			Step 6: Run and Test
+				Run your app.
+				Visit http://localhost:8080/.
+				Click “Login with Google”.
+				You’ll be redirected to Google, then back to your app.
+				Access /secured to see the logged-in user info.
+				
+		
+		
+	Build your custome OAuth: 
+				1. Authorization Server    -->> <artifactId>spring-security-oauth2-authorization-server</artifactId>
+					Handles user login and issues access tokens.					
+				2. Resource Server
+					Hosts protected APIs.
+					Validates incoming access tokens before allowing access.
+					
+				
+				1. Authorization Server -->>  spring-security-oauth2-authorization-server   spring-boot-starter-security  spring-boot-starter-web
+						application.yml - port 9000
+						Configuration Class -->>								
+										@Configuration
+										public class AuthServerConfig {
+											@Bean
+											public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+												OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
+													// due to above Spring Authorization Server automatically exposes the following endpoints:
+													// /oauth2/authorize	Starts the OAuth2 flow (user login + consent)
+													// /oauth2/token	Exchanges authorization code for access token
+													// /oauth2/jwks	Provides public keys for JWT validation
+													// /userinfo	(Optional) Returns user profile info if you implement it in auth server @controller and retrun some user Map
+												return http.build();
+											}
+
+											@Bean
+											public RegisteredClientRepository registeredClientRepository() {
+												RegisteredClient client = RegisteredClient.withId(UUID.randomUUID().toString())
+													.clientId("client-app")
+													.clientSecret("{noop}secret")
+													.authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+													.redirectUri("http://localhost:8080/login/oauth2/code/custom")
+													.scope("read")
+													.scope("write")
+													.build();	
+													
+														//Stores client details like clientId, clientSecret, redirectUri, and scopes.
+														//When the client app sends a request to /oauth2/authorize, the server checks this repository to validate the client.
+														//Essential for client authentication and authorization.
+
+												return new InMemoryRegisteredClientRepository(client);
+											}
+											@Bean
+											public UserDetailsService userDetailsService() {
+												UserDetails user = User.withUsername("ravi")
+													.password("{noop}password")
+													.roles("USER")
+													.build();
+														// Authenticates the user logging in.
+														// When the user is redirected to the login page, this bean provides user credentials.
+														// Validates username/password and assigns roles.
+												return new InMemoryUserDetailsManager(user);
+											}
+											@Bean
+											public ProviderSettings providerSettings() {
+												return ProviderSettings.builder()
+													.issuer("http://localhost:9000")
+													.build();
+													// Helps clients and resource servers validate tokens.
+											}
+											@Bean
+											public JWKSource<SecurityContext> jwkSource() {
+												RSAKey rsaKey = Jwks.generateRsa();
+												JWKSet jwkSet = new JWKSet(rsaKey);
+												return (selector, context) -> selector.select(jwkSet);
+													// When the server issues access tokens, it signs them using a private key.
+													// This bean provides the public key via /oauth2/jwks so resource servers can verify the token signature.
+													// ✅ Vital for secure token verification.
+											}
+										}
+
+				2. Resource Server (Port 8081)  spring-boot-starter-oauth2-resource-server + web + security
+				          application.yml -->>								
+										spring:
+										  security:
+											oauth2:
+											  resourceserver:
+												jwt:
+												  issuer-uri: http://localhost:9000
+							
+							configuration: -->>								
+										@Configuration
+										public class ResourceServerConfig {
+
+											@Bean
+											public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+												http
+													.authorizeHttpRequests(auth -> auth
+														.anyRequest().authenticated()
+													)
+													.oauth2ResourceServer(oauth2 -> oauth2.jwt());
+												return http.build();
+											}
+										}
+
+							secure api/resource:									
+									@RestController
+									public class SecureController {
+
+										@GetMapping("/secure")
+										public String secure(Principal principal) {
+											return "Hello, " + principal.getName() + "! You accessed a protected resource.";
+										}
+										
+											// This is a protected REST API.
+											//	It is not part of the login flow.
+											//	It expects a valid access token in the Authorization header call by any app.
+									}
+				
+				3. Client App (Port 8080)   >spring-boot-starter-oauth2-client<   + web + security
+						application.yml -->>								
+								server:
+								  port: 8080
+								  
+								spring:
+								  security:
+									oauth2:
+									  client:
+										registration:
+										  custom:
+											client-id: client-app
+											client-secret: secret
+											authorization-grant-type: authorization_code
+											redirect-uri: "{baseUrl}/login/oauth2/code/custom"
+											scope: read, write
+										provider:
+										  custom:
+											authorization-uri: http://localhost:9000/oauth2/authorize
+											token-uri: http://localhost:9000/oauth2/token
+											user-info-uri: http://localhost:9000/userinfo
+											user-name-attribute: sub
+												// these URL ebable by defaule once we use applyDefaultSecurity() in auth server.
+
+						
+						configuration -->>								
+										@Configuration
+										public class SecurityConfig {
+
+											@Bean
+											public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+												http
+													.authorizeHttpRequests(auth -> auth
+														.requestMatchers("/", "/error").permitAll()
+														.anyRequest().authenticated()
+													)
+													.oauth2Login();													
+
+												return http.build();
+											}
+										}
+						Controller: 									
+								@RestController
+								public class HomeController {
+
+									@GetMapping("/")
+									public String home() {
+										return "Welcome to the app. <a href='/oauth2/authorization/custom'>Login with Custom Auth Server</a>";
+									}
+
+									@GetMapping("/secure")
+									public String secure(Principal principal) {
+										return "Hello, " + principal.getName() + "! You are logged in.";
+									}
+									// This is part of the OAuth2 login flow.
+									// After the user logs in via the Authorization Server, Spring Security redirects them back to the client app.
+									// The client app automatically calls /userinfo (if configured in auth server), and then shows user info on /secure.
+									// if we want to land app on this url after login we can user below lines.
+									// 	.oauth2Login(oauth2 -> oauth2
+													//	.defaultSuccessUrl("/secure", true)
+								}
+
+
+In Java, a weak reference is a type of reference that does not prevent an object from being garbage collected.
+		Normally, if you create an object and assign it to a variable, Java's garbage collector will not remove that object from 
+		memory as long as the variable is still pointing to it. This is called a strong reference.
+		But sometimes, you want to refer to an object without stopping it from being cleaned up when memory is needed. That’s where weak references come in.
+		
+		GC will clean up weakly-referenced objects when memory is tight.
+		 avoid memory leaks
+		 
+		 
+		// Create a strong reference
+        String strong = new String("Hello Ravi");
+
+        // Create a weak reference to the same object
+        WeakReference<String> weak = new WeakReference<>(strong);
+
+        // Remove the strong reference
+        strong = null;
+
+        // Suggest garbage collection
+        System.gc();
+		
+		Note:   WeakReference.get() returns the object if it’s still alive.
+				If the object is garbage collected, get() returns null.
+				Useful for memory-sensitive designs like caches (e.g., WeakHashMap).

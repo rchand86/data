@@ -1,0 +1,1549 @@
+Kafka -->>
+			
+			<dependency>
+				<groupId>org.springframework.kafka</groupId>
+				<artifactId>spring-kafka</artifactId>
+			</dependency>
+
+			Kafka cluster -->> is a group of Kafka servers (brokers) that work together to handle large volumes of data reliably and efficiently.
+								These brokers store, send, and receive messages (data).
+								
+								A Kafka cluster is a coordinated system of Kafka brokers that work together to:
+									Store data (messages)
+									Distribute load across multiple servers
+									Ensure fault tolerance (if one broker fails, others take over)
+									Enable scalability (you can add more brokers as your data grows)
+								
+								Each broker in the cluster knows about the others and shares responsibility for storing and serving data.
+			
+						How Does Your App Connect to Kafka?
+									spring.kafka.bootstrap-servers=broker1:9092,broker2:9092   OR spring.kafka.bootstrap-servers=broker1:9092									
+											Once your app connects to that one broker:
+													Kafka replies with a list of all the brokers in the cluster.
+													Now your app knows the full cluster and can talk to any broker directly.											
+													So even if you give only one broker address, Kafka helps your app discover the rest of the cluster automatically.
+											
+											
+			authenticate/authorization/Encription -->>
+						Kafka is like a shared company whiteboard:
+								Anyone can write or read unless you lock it.
+								You don’t want outsiders or unauthorized apps messing with your data.
+										So, we secure Kafka to: authenticate (can access kafka or not), authorization(read/write access) and Encrype(decode data transfer)
+										
+				Note: server.properties:  -->> settings file for the Kafka server, It’s not part of your Spring Boot app. It belongs to the Kafka server itself.
+								location: /home/ravi/kafka_2.13-3.6.0/config/server.properties
+								 most important settings in server.properties  -->>
+										broker.id=1  						-->> Unique ID for this Kafka server -	Like giving each post office a number
+										listeners=PLAINTEXT://:9092  		-->> PORT
+										log.dirs=/tmp/kafka-logs  			-->> Folder where Kafka keeps your data
+										num.partitions=1    				-->> Default number of partitions per topic  - How many "drawers" each topic has
+										ssl.keystore.location  				-->> Location of SSL certificate,	Used for secure communication
+										security.inter.broker.protocol=SSL  -->> Protocol between Kafka servers , IT Ensures brokers talk securely
+										auto.create.topics.enable=true    	-->> Kafka will create topics if they don’t exist
+										
+										
+										
+						Authentication/Authorization/Encryption : Using SSL -->> SSL in Kafka = Two Things Together
+																		1. Authentication -->> Kafka checks who is connecting (based on SSL certificates).
+																							   It verifies the identity of the client (your Spring Boot app) 
+																		2. Encryption   -->> 
+																						Kafka encrypts all data sent between your app and the Kafka broker.
+																						This means no one can see or tamper with the messages while they are in transit.
+										Step 1: Generate SSL Certificates
+												You need:
+													Kafka Server Keystore and Truststore (for identity)													
+														Use OpenSSL or Java keytool: to generate these files with user given password in command
+												
+										Step 2: Configure these keystore and truststore path and pass into Kafka Server (server.properties)
+													listeners=SSL://:9093
+														security.inter.broker.protocol=SSL														
+														ssl.keystore.location=/path/to/kafka.server.keystore.jks
+														ssl.keystore.password=password
+														ssl.key.password=password
+
+														ssl.truststore.location=/path/to/kafka.server.truststore.jks
+														ssl.truststore.password=password
+										
+										Step 3: Configure Spring Boot App (application.yml) -->> give these keystore and truststore path and pass or put inside the app												   
+												spring:
+												  kafka:
+													bootstrap-servers: localhost:9093
+													ssl:
+													  trust-store-location: classpath:kafka.client.truststore.jks
+													  trust-store-password: password
+													
+										Step 4: Set Up Authorization (Kafka ACLs)  -->> Can Ravi's app read from topic shipment-events? Can Ravi's app write to topic shipment-events?
+												Kafka uses ACLs (Access Control Lists) to manage this.
+												ACLs are like permissions or rules that Kafka checks before allowing access.
+												OR ACLs are the list of people who are allowed to enter and what they can do.
+														How to Set Up Kafka ACLs -->>
+																Step 1: Enable Authorization in Kafka
+																			In your Kafka server’s server.properties file, add:																			
+																				authorizer.class.name=kafka.security.auth.SimpleAclAuthorizer
+																				super.users=User:admin
+																			    Note: This tells Kafka to check ACLs before allowing access.
+																
+																Step 2: Add ACLs Using Kafka Command -- Kafka provides a command-line tool called kafka-acls.sh
+																		Allow a user/ravi-app to read from a topic																				
+																			kafka-acls.sh --authorizer-properties zookeeper.connect=localhost:2181 \
+																			--add --allow-principal User:ravi-app --operation Read --topic shipment-events
+																			
+
+
+
+										
+										Step 5: Test Your Spring Boot App										
+													Producer: -->>
+															@Autowired
+															private KafkaTemplate<String, String> kafkaTemplate;
+
+															public void sendMessage(String msg) {
+																kafkaTemplate.send("shipment-events", msg);
+															}
+													Consumer-->>																														
+															@KafkaListener(topics = "shipment-events")
+															public void listen(String message) {
+																System.out.println("Received: " + message);
+															}
+
+										Step 6: Monitor and Debug
+												Kafka logs: logs/server.log
+												Spring Boot logs: check for SSL handshake errors or authorization failures
+												Use KafkaTool or kafkacat to inspect topics and messages
+
+
+			1. Publishing msg-1 with id12 to Kafka -->> 
+					@Autowired
+					private KafkaTemplate<String, String> kafkaTemplate;
+
+					public void sendMessage() {
+						String key = "id12";       // This is like the label/address on the envelope
+						String message = "msg-1";  // This is the content of the envelope
+						kafkaTemplate.send("topic-1", key, message);  // topic-1 is like mail-box
+					}
+			
+			2. How Kafka stores the message in topic-1
+							Kafka topics are split into partitions. Kafka uses the key (id12) to decide which (partition) to put the message in by hashing algorithm.							
+									1- How Kafka Finds the Partition Using Hashing Algorithm -->>											
+												if a key is provided, it uses a partitioner (default is DefaultPartitioner) to hash the key.
+												The hash is used to calculate the partition like this:  partition = hash(key) % number_of_partitions
+													For example:
+														Key = "id12" Hash of "id12" = 123456
+														Number of partitions = 3
+														Partition = 123456 % 3 = 0
+													So, the message goes to partition 0 of the topic. Kafka uses Murmur2 hashing internally, which is fast and consistent.
+									
+									2- Creating Partitions in Kafka
+										Option 1: Using Kafka CLI (Most Common)												
+														kafka-topics.sh --create \
+														  --topic topic-1 \
+														  --partitions 3 \
+														  --replication-factor 1 \
+														  --bootstrap-server localhost:9092
+										Option 2: Using KafkaAdmin:										
+												@Bean
+												public NewTopic createTopic1() {
+													return TopicBuilder.name("topic-1")
+															.partitions(3)
+															.replicas(1)
+															.build();           //This will create topic-1 with 3 partitions and 1 replica when the app starts.
+												}                               // If the topic already exists, it won’t recreate it, kafkaAdmin internally done this when we.
+
+							
+										What Is a Replica in Kafka?	-->>
+												A replica is a copy of a partition stored on a different Kafka broker. It helps with:
+													High availability: If one broker fails, another can serve the data.
+													Data durability: Prevents data loss in case of hardware failure.
+											
+											No of replica: local  -   1  -->> no replicate will work.
+															dev/test: -2 
+															Prod     -   3  -  Replicas is the most commonly recommended setup for production.
+												Note: You can configure Kafka to only acknowledge when all replicas have received the message (acks=all).
+												
+											
+											Example Scenario:  We have a topic called topic-1, 2 partitions: partition-0 and partition-1  And replication factor = 2
+												Let’s say:
+													You send msg-1 with key id12
+													Kafka hashes id12 and decides to store it in partition-1 of topic-1
+													Your topic has replication factor = 2
+													
+													Then:
+													partition-1 is stored on Broker A (leader)
+													A replica of partition-1 is stored on Broker B (follower)
+													
+													So if Broker A fails:
+													Broker B can take over as the leader for partition-1
+													Your message msg-1 is still safe and available
+												Note: Each partition has its own replicas, stored on different brokers.
+												    Leader handles all reads/writes for its partition.
+													 Replicas do not serve read/write requests unless they become the leader.
+													 If Broker B (leader) fails, Broker C(Replicas) becomes the new leader.
+													 Replication factor = 2 means each partition has 1 replica of diff broker.(1st copy/replica is leader partition itself.)
+															
+											Example Scenario: If you set replication factor = 1, it means:
+														Each partition has only one copy — the leader.
+														No replicas are created.
+														If the broker hosting that partition fails, the data in that partition is unavailable 
+														
+											Scenario 1: 1 Broker Only
+															Partitions = 2	Both partitions stored on the same broker
+															Replication Factor = 1	Works fine (no replicas needed)
+															Replication Factor = 2	❌ Replicas cannot be created (Kafka will warn: under-replicated partitions)
+											
+											Scenario 2: 2 Brokers														
+															Partitions = 2	        Kafka can distribute partitions across both brokers
+															Replication Factor = 2	✅ Each partition can have 1 leader + 1 replica on the other broker
+															Replication Factor = 3	❌ Not enough brokers to place all replicas (Kafka will warn)
+												
+							Note:  to create multiple Broker we need multiple properties file with diff broker.id (server-1.properties, server-2.properties, etc.)
+									but for prod we reccomended multiple machine for multiple Brokers.
+									
+												
+			3 - application.yml	
+							
+							consumer:
+								  group-id: group-1
+								   enable-auto-commit: true        // Kafka will automatically save the position (offset) of the last message your consumer read.
+								   auto-commit-interval: 1000  # in milliseconds // Kafka will save the bookmark (offset) every 1000 milliseconds (1 second).
+								  key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+								  value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+								  auto-offset-reset: earliest/latest/none // This property tells Kafka where the consumer should start reading messages from a partition 
+															// if no committed offset is found
+															// latest - The consumer will start reading only new messages that arrive after it starts.
+															// earliest – Start from the Beginning
+															// none – Fail if No Offset is Found; If there’s no previously committed offset, Kafka will throw an error.
+															
+									committed offset -->> is the last message position that a Kafka consumer has successfully processed and saved. 
+										1. Automatic Offset Commit (Default) -->> enable-auto-commit: true
+										2. Manual Offset Commit (More Control) -->> You can manually commit offsets after processing messages. BY:
+										  // ack.acknowledge();  								  
+									
+			
+			4. How a consumer reads msg-1 for id12						
+							@KafkaListener(topics = "topic-1", groupId = "group-1")
+							public void listen(ConsumerRecord<String, String> record) {
+								if ("id12".equals(record.key())) {
+									System.out.println("Received msg-1 for id12: " + record.value());
+								}
+							}								
+			
+			 Kafka Consumer Group  -->>
+					Suppose We have a Kafka topic called pizza-orders, and it has 3 partitions (like 3 order queues).
+							We also have 3 delivery boys (Kafka consumers): Consumer A,	Consumer B,	Consumer C
+							Now let’s see how they behave based on the group-id.
+								Case 1: All Consumers Have the Same group-id -->>
+										This means they are part of the same team.
+										Kafka will divide the work among them.
+										Each consumer gets one or more partitions.
+										No two consumers in the same group will read the same message. OR A, B will not read the same message.
+											P0	read by	Consumer A
+											P1	read by	Consumer B
+											P2	read by	Consumer C
+								
+								Case 2: Each Consumer Has a Different group-id
+										This means they are not working together — each is an independent delivery service.										
+										Kafka treats each consumer as a separate group.
+										Each consumer will read all partitions.
+										So, every message is delivered to all consumers.										
+											P0	read by A, B, C
+											P1	read by A, B, C
+											P2	read by  A, B, C
+											
+		
+			spring:
+			  kafka:
+				bootstrap-servers: localhost:9093  # Use 9093 for SSL (or your secure port)
+
+				# SSL Configuration
+				properties:
+				  security.protocol: SSL
+				  ssl.truststore.location: classpath:kafka.client.truststore.jks
+				  ssl.truststore.password: yourTruststorePassword
+				  ssl.keystore.location: classpath:kafka.client.keystore.jks
+				  ssl.keystore.password: yourKeystorePassword
+				  ssl.key.password: yourKeyPassword
+
+				# Producer Configuration
+				producer:
+				  key-serializer: org.apache.kafka.common.serialization.StringSerializer
+				  value-serializer: org.apache.kafka.common.serialization.StringSerializer
+				  properties:
+					security.protocol: SSL
+					ssl.truststore.location: classpath:kafka.client.truststore.jks
+					ssl.truststore.password: yourTruststorePassword
+					ssl.keystore.location: classpath:kafka.client.keystore.jks
+					ssl.keystore.password: yourKeystorePassword
+					ssl.key.password: yourKeyPassword
+
+				# Consumer Configuration
+				consumer:
+				  group-id: group-1
+				  auto-offset-reset: earliest
+				  enable-auto-commit: true
+				  key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+				  value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+				  properties:
+					security.protocol: SSL
+					ssl.truststore.location: classpath:kafka.client.truststore.jks
+					ssl.truststore.password: yourTruststorePassword
+					ssl.keystore.location: classpath:kafka.client.keystore.jks
+					ssl.keystore.password: yourKeystorePassword
+					ssl.key.password: yourKeyPassword
+		
+		To connect a Spring Boot application to Kafka, you need to configure
+			Maven dependency
+			application.yml Configuration (with SSL) + bootstrap-servers: localhost:9093
+				Keystore and Truststore Setup
+					Place your .jks files in src/main/resources/:
+					truststore.jks: Verifies Kafka broker's certificate
+					keystore.jks: Contains client certificate and private key
+					
+				truststore.jks -->> It contains public certificates of Kafka brokers (servers). -->> uses when Kafka connect to app
+									Who owns it? Kafka server
+									Purpose: To prove Kafka is genuine when your app connects.
+									Stored in: Your app’s truststore.jks
+									Used for: Your app verifying Kafka’s identity
+									
+				keystore.jks   -->> It contains your app’s certificate and private key.   -->> uses when app connect to Kafka
+									Who owns it? Your Spring Boot application (client)
+									Purpose: To prove your app is genuine when Kafka receives a connection.
+									Stored in: Your app’s keystore.jks
+									Used for: Kafka verifying your app’s identity
+									
+
+Kafka Producer Acknowledgments   (producer configuration)  -->> Kafka brokers must confirm that they received the message before the producer send teh acknowledgement"
+
+							acks=0:  Fire and Forget
+								Producer sends the message and moves on.
+								No confirmation from Kafka.
+								Fastest, but no guarantee the message was received.
+								Use case: Logging or metrics where occasional loss is acceptable.
+
+							acks=1:  Only Leader Acknowledgment
+								Producer waits for leader broker to confirm. Safer than 0, but if the leader crashes before followers replicate, data can be lost.
+								Kafka has one leader broker for each partition.
+								Producer waits for only the leader to confirm receipt.
+								Faster than acks=all, but:
+								If the leader crashes before followers replicate, the message is lost.
+								Use case: Balanced performance and reliability.
+
+							acks=all (or acks=-1):  Leader +  Replicas
+								Producer waits for all in-sync replicas (ISR) to confirm.
+								Safest option — ensures the message is replicated and durable.
+								Slower, but no data loss unless all replicas fail.
+								Use case: Financial transactions, critical data pipelines.
+								
+			enable.idempotence = true	Ensures exactly-once delivery. Prevents duplicates even on retries. Should be true for critical data.
+								If you want exactly-once delivery, use:
+									acks=all
+									enable.idempotence=true
+									This ensures no duplicates, even if retries happen.
+			
+			retries	   -->> Number of times to retry sending if it fails. Helps with temporary issues.
+						retries=3 -->>
+								Producer sends a message.
+								If it fails, Kafka waits for a short time (retry.backoff.ms) and tries again.
+								It will retry up to 3 times.
+								If all retries fail, the producer throws an exception.
+			retry.backoff.ms -->> 	Wait time between retries. Prevents hammering the broker.
+			compression.type -->>	Compress messages to save bandwidth. Options: none, gzip, snappy, lz4, zstd. -->> Save disk space on brokers
+									Kafka allows producers to compress messages before sending them to brokers		
+									
+										Properties props = new Properties();
+										props.put("bootstrap.servers", "localhost:9092");
+										props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+										props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+										props.put("compression.type", "snappy"); // or gzip, lz4, zstd										
+										
+										OR -->>
+										
+										spring:
+										  kafka:
+											producer:
+											  bootstrap-servers: localhost:9092
+											  key-serializer: org.apache.kafka.common.serialization.StringSerializer
+											  value-serializer: org.apache.kafka.common.serialization.StringSerializer
+											  compression-type: snappy  # Options: none, gzip, snappy, lz4, zstd
+											  acks: all
+											  retries: 5
+											  enable-idempotence: true
+
+
+What is Apache Camel? 		-->>
+					Imagine you have different systems in your company:	
+						One system stores customer data in a database.
+						Another system sends emails.
+						Another one talks to a third-party API.
+					Now, you want these systems to talk to each other smoothly. But they all speak different languages (protocols like HTTP, JMS, FTP, Kafka, etc.).
+				
+				Apache Camel is like a smart courier service that knows how to:
+					Pick up data from one system (source),
+					Understand its format,
+					Transform it if needed,
+					And deliver it to another system (destination).				
+				
+				Camel uses something called routes. A route is like a workflow:  You define these routes using Java, XML, or Spring DSL.
+			
+			Use case: 
+					One of the most common and powerful use cases is integration between microservices or external systems.
+					Data synchronization between legacy systems and modern apps
+					ETL pipelines (Extract, Transform, Load)
+
+	Use case: 
+		You have a service that:
+				Receives shipment data via REST.
+				Publishes it to a Kafka topic.
+				Saves it to a DB2 database.
+				Sends it to another service via HTTP POST (simulating MarkLogic ingestion).					
+		
+		
+					<!-- Apache Camel Core -->
+						<dependency>
+							<groupId>org.apache.camel.springboot</groupId>
+							<artifactId>camel-spring-boot-starter</artifactId>
+						</dependency>
+
+						<!-- Camel Kafka -->
+						<dependency>
+							<groupId>org.apache.camel.springboot</groupId>
+							<artifactId>camel-kafka-starter</artifactId>
+						</dependency>
+
+						<!-- Camel JDBC -->
+						<dependency>
+							<groupId>org.apache.camel.springboot</groupId>
+							<artifactId>camel-jdbc-starter</artifactId>
+						</dependency>
+
+						<!-- Camel HTTP -->
+						<dependency>
+							<groupId>org.apache.camel.springboot</groupId>
+							<artifactId>camel-http-starter</artifactId>
+						</dependency>
+						
+				
+				camel.rest.component=servlet
+				camel.servlet.mapping.context-path=/api
+				camel.rest.binding-mode=json
+
+				
+				@Component
+				public class ShipmentRoute extends RouteBuilder {
+					@Value("${marklogic.endpoint}")
+					private String marklogicEndpoint;
+
+					@Override
+					public void configure() throws Exception {
+
+						// Define REST endpoint
+						restConfiguration()
+							.component("servlet")
+							.contextPath("/api")
+							.bindingMode(RestBindingMode.json);
+
+						// Define POST endpoint
+						rest("/shipments")
+							.post()
+							.type(Shipment.class)
+							.to("direct:processShipment");
+
+						// Route logic
+						from("direct:processShipment")
+							.routeId("shipment-route")
+							.log("Received shipment: ${body}")
+
+							// Send to Kafka
+							.marshal().json()
+							.to("kafka:shipments?serializerClass=org.apache.kafka.common.serialization.StringSerializer")
+							.log("Published to Kafka")
+
+							// Insert into DB2
+							.unmarshal().json(JsonLibrary.Jackson, Shipment.class)
+							.setBody(simple("INSERT INTO SHIPMENTS (ID, ORIGIN, DESTINATION, STATUS) VALUES ('${body.id}', '${body.origin}', '${body.destination}', '${body.status}')"))
+							.to("jdbc:dataSource")
+							.log("Saved to DB2")
+
+							// Send to MarkLogic
+							.marshal().json()
+							.setHeader(Exchange.CONTENT_TYPE, constant("application/json"))
+							.toD("http4:" + marklogicEndpoint)
+							.log("Sent to MarkLogic");
+					}
+				}
+			Note: Here no controller is required in camel, camel internally handle this by defining above rest in route
+	
+	Use Case: Syncing data from a legacy system to a modern microservice is a classic integration -->> CSV data send to another app using  to Rest call 
+			Imagine your legacy system:
+					Stores data in a flat file, old database, or FTP server. Who Doesn’t support REST APIs or Kafka.
+					But your modern microservice expects data via HTTP, Kafka, or JSON APIs.
+					
+					So you need a bridge that:
+							Reads data from the legacy source. -->> Camel reads a CSV file from a legacy folder.
+							Transforms it into modern format.  -->> Converts each line to a Java object & Transforms it to JSON.
+							Sends it to the new microservice.  -->> Sends it via HTTP POST to a modern microservice.
+							
+					
+			<!-- Camel Bindy for CSV -->
+			<dependency>
+				<groupId>org.apache.camel.springboot</groupId>
+				<artifactId>camel-bindy-starter</artifactId>
+			</dependency>			
+			
+			@CsvRecord(separator = ",", skipFirstLine = true)
+			public class LegacyShipment {
+				@DataField(pos = 1)
+				private String id;
+				
+			
+			@Component
+			public class LegacySyncRoute extends RouteBuilder {
+
+				@Override
+				public void configure() throws Exception {
+
+					from("file://legacy-data?noop=true")
+						.routeId("legacy-sync-route")
+						.log("Reading legacy file: ${file:name}")
+
+						// Unmarshal CSV to Java object
+						.unmarshal().bindy(BindyType.Csv, LegacyShipment.class)
+						.split(body()) // Process each line separately
+						.log("Processing shipment: ${body}")
+
+						// Convert to JSON
+						.marshal().json()
+
+						// Send to modern microservice
+						.setHeader(Exchange.CONTENT_TYPE, constant("application/json"))
+						.toD("http4:" + modernEndpoint)
+						.log("Sent to modern microservice");
+				}
+			}
+		Note: configure() will run only once at app started by it continuesly watch the legacy-data folder and Processes new files as they appear.
+				So if you drop a new file into that folder after the app has started, Camel will pick it up automatically.
+
+	
+	Use Case -->> Legacy DB → Modern Microservice
+			🔁 Flow:
+			Camel queries the legacy DB2 database for new shipment records.
+			Converts each record to JSON.
+			Sends it to a modern microservice via HTTP POST.
+			
+		
+	@Override
+    public void configure() throws Exception {
+
+        // Poll DB2 every 10 seconds
+        from("timer://db2Poller?period=10000")
+            .routeId("db2-to-modern-route")
+            .log("Polling DB2 for shipments...")
+
+            // Query DB2
+            .setBody(constant("SELECT ID, ORIGIN, DESTINATION, STATUS FROM SHIPMENTS WHERE STATUS = 'NEW'"))
+            .to("jdbc:dataSource")
+
+            // Split each row
+            .split(body())
+            .process(exchange -> {
+                Map<String, Object> row = exchange.getIn().getBody(Map.class);
+                Shipment shipment = new Shipment();
+                shipment.setId((String) row.get("ID"));
+                shipment.setOrigin((String) row.get("ORIGIN"));
+                shipment.setDestination((String) row.get("DESTINATION"));
+                shipment.setStatus((String) row.get("STATUS"));
+                exchange.getIn().setBody(shipment);
+            })
+
+            // Convert to JSON and send to modern microservice
+            .marshal().json()
+            .setHeader(Exchange.CONTENT_TYPE, constant("application/json"))
+            .toD("http4:" + modernEndpoint)
+            .log("Sent shipment to modern microservice: ${body}");
+    }
+	
+	Note: 
+		Every 10 seconds, Camel runs a SQL query on DB2.
+		It fetches all shipments with status "NEW".
+		Converts each row into a Shipment object.
+		Sends each shipment as JSON to the modern microservice via HTTP POST.
+
+Rest vs FeignClient -->>
+		1- boiler Plate Code in Rest
+				Rest Template boiler Plate Code:							
+							RestTemplate restTemplate = new RestTemplate();
+							String url = "https://jsonplaceholder.typicode.com/posts/1";
+
+							HttpHeaders headers = new HttpHeaders();                     -->> Set headers
+							headers.set("Accept", MediaType.APPLICATION_JSON_VALUE);
+							HttpEntity<String> entity = new HttpEntity<>(headers);
+
+							ResponseEntity<Post> response = restTemplate.exchange(    
+								url,
+								HttpMethod.GET,
+								entity,
+								Post.class
+							);
+
+							Post post = response.getBody();  // request/response mapping
+							
+				Feign Client do not have this it has clean code:		
+						@FeignClient(name = "post-service", url = "http://localhost:8081")
+						public interface PostClient {
+							@GetMapping("/api/posts/{id}")
+							Post getPostById(@PathVariable("id") Long id);
+						}
+						
+						Just call postClient.getPostById(id) from the controller. -->>  no need to build URL or handle response manually.
+
+
+		2. Built-in Load Balancing (with Eureka/Ribbon)
+
+						RestTemplate -->> You need to manually annotate and configure:			
+								@Bean
+								@LoadBalanced
+								public RestTemplate restTemplate() {
+									return new RestTemplate();
+								}
+								
+						Feign Client	-->>	
+							Just use the service name:	
+								@FeignClient(name = "post-service")
+								public interface PostClient {
+									@GetMapping("/api/posts/{id}")
+									Post getPostById(@PathVariable("id") Long id);
+								}
+
+		3 - Easy Integration with Spring Cloud Features  like Circuit Breaker (Resilience4j/Hystrix)
+						Feign Client	-->>	
+								@Retryable
+								@FeignClient(name = "post-service")
+								
+						RestTemplate  -->>
+								You need to manually wrap calls with retry logic or circuit breaker.
+			
+			
+			
+				Note: Yes! You can make asynchronous calls using CompletableFuture or @Async. But Feign doesn't 
+						support async out-of-the-box — you need to combine it with Spring's async features.
+
+		4 - Exception Handling in Feign Client (Declarative & Centralized) -->>
+				Custom Error Decoder  -->> You can define a class that implements ErrorDecoder to intercept errors globally.
+						Step 1: Create Custom Exception						
+								public class ResourceNotFoundException extends RuntimeException {
+									public ResourceNotFoundException(String message) {
+										super(message);
+									}
+								}
+						Step 2: Create Error Decoder -->>						
+								import feign.Response;
+								import feign.codec.ErrorDecoder;
+
+								public class FeignErrorDecoder implements ErrorDecoder {
+									@Override
+									public Exception decode(String methodKey, Response response) {
+										switch (response.status()) {
+											case 404:
+												return new ResourceNotFoundException("Resource not found");
+											case 500:
+												return new RuntimeException("Internal server error");
+											default:
+												return new RuntimeException("Generic error: " + response.status());
+										}
+									}
+								}
+						Step 3: Register Decoder in Configuration						
+								@Configuration
+								public class FeignConfig {
+
+									@Bean
+									public ErrorDecoder errorDecoder() {
+										return new FeignErrorDecoder();
+									}
+								}
+						Step 4: Use Feign Client with Config -->>						
+								@FeignClient(name = "post-client", url = "https://jsonplaceholder.typicode.com", configuration = FeignConfig.class)
+								public interface PostClient {
+									@GetMapping("/posts/{id}")
+									Post getPostById(@PathVariable("id") Long id);
+								}
+
+			But in Rest: 
+					Create a custom ResponseErrorHandler
+					Register it with the RestTemplate
+					Manually inspect and handle HTTP status codes
+
+	Need for FeignClient -->>
+		@EnableFeignClients
+		@EnableAsync -- ofwe want async in FeignClient.
+		<artifactId>spring-cloud-starter-openfeign</artifactId>	
+		
+
+Core Methods in RestTemplate
+		1. getForObject()
+			Sends a GET request and returns the response body directly. Use when you only care about the body.
+				Post post = restTemplate.getForObject("https://api.example.com/posts/1", Post.class);
+		
+		2. getForEntity()
+			Sends a GET request and returns a ResponseEntity (includes status, headers, body).
+				
+				ResponseEntity<Post> response = restTemplate.getForEntity("https://api.example.com/posts/1", Post.class);
+				HttpStatus status = response.getStatusCode();
+				Post post = response.getBody();
+
+			
+		3. postForObject()
+			Sends a POST request and returns the response body.
+			
+				Post newPost = new Post("Title", "Body");
+				Post createdPost = restTemplate.postForObject("https://api.example.com/posts", newPost, Post.class);
+				
+		4. postForEntity()
+				Sends a POST request and returns a ResponseEntity.
+				    ResponseEntity<Post> response = restTemplate.postForEntity("https://api.example.com/posts", newPost, Post.class);
+		
+		
+		5. put()
+				Sends a PUT request. No response body is returned.
+					restTemplate.put("https://api.example.com/posts/1", updatedPost);
+					
+		6. delete()
+				Sends a DELETE request.
+				restTemplate.delete("https://api.example.com/posts/1");
+				
+		7. exchange()
+				Most flexible method. Can be used for GET, POST, PUT, DELETE, etc.
+				Allows setting headers, body, and HTTP method.
+					
+					HttpHeaders headers = new HttpHeaders();
+					headers.setContentType(MediaType.APPLICATION_JSON);
+					HttpEntity<Post> entity = new HttpEntity<>(newPost, headers);
+
+					ResponseEntity<Post> response = restTemplate.exchange(
+						"https://api.example.com/posts",
+						HttpMethod.POST,
+						entity,
+						Post.class
+					);
+					
+		8. execute()
+				Lowest-level method. Gives full control over the request and response.
+				Rarely used unless you need custom behavior.				
+					
+						<T> T = restTemplate.execute("https://api.example.com/posts/1", HttpMethod.GET, null, clientHttpResponse -> {
+							// custom response handling
+							return null;
+						});
+						
+				The return type is generic (<T>), meaning you can return any type depending on how you extract the response.
+				For example, it could be a String, a custom object like Post, or even a raw InputStream.	
+
+Timeout and other properties on RestTemplete update -->>
+		HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory();
+		factory.setConnectTimeout(connectTimeout);       // Time to establish connection
+		factory.setReadTimeout(readTimeout);             // Time to wait for response
+
+		return new RestTemplate(factory);
+				
+
+
+In Spring Boot, ways to access configuration values like those defined in application.yml or application.properties. 		
+			1. Using @Value Annotation -->>
+			
+					@Value("${my.property}")
+					private String myProperty;
+					
+			2. Using @ConfigurationProperties -->>
+					application.yml-							
+							my:
+							  app:
+								name: RaviApp
+								version: 1.0
+					
+					@Component
+					@ConfigurationProperties(prefix = "my.app")
+					public class MyAppProperties {
+						private String name;
+						private String version;
+
+						// Getters and Setters
+					}					
+					
+					@Autowired
+					private MyAppProperties myAppProperties;
+
+					@GetMapping("/info")
+					public String getAppInfo() {
+					   myAppProperties.getName();
+					}
+
+
+
+					If you're using Spring Boot 2.2+, just annotate your class with @Component.
+					Otherwise, you may need to add this in your main class: @EnableConfigurationProperties(MyAppProperties.class)
+			
+			3. Using Environment Object -->>
+				
+					@Autowired
+					private Environment env;
+
+					public void printProperty() {
+						String value = env.getProperty("my.property");
+					}
+					
+			4. Using @PropertySource
+					@PropertySource is used to load custom .properties files into your Spring application — especially 
+							when the values are not in application.properties or application.yml.	
+					
+					config.properties				
+						app.title=Ravi's Spring App
+						app.owner=Ravi Chand
+										
+					
+					@Configuration
+					@PropertySource("classpath:config.properties")
+					public class AppConfig {
+
+						@Value("${app.title}")
+						private String appTitle;
+
+						@Value("${app.owner}")
+						private String appOwner;
+						
+					}
+					
+					@Configuration: Marks this class as a Spring configuration class.
+					@PropertySource: Tells Spring to load the config.properties file.
+					@Value: Injects individual property values.
+
+					
+			5. Profiles (@Profile)
+					You can define environment-specific properties using profiles like application-dev.yml, application-prod.yml, and activate them via:
+						
+						spring:
+						  profiles:
+							active: dev
+
+ConcurrentModificationException   -->> occurs when you modify a collection (like ArrayList) while iterating over it
+						
+						How to Resolve It -->>
+								1. Use Iterator with remove() -->>	This is the recommended way when you need to remove items while iterating.									
+															Iterator<String> iterator = list.iterator();
+															while (iterator.hasNext()) {
+																String item = iterator.next();
+																if (item.equals("B")) {
+																	iterator.remove(); // ✅ Safe removal
+																}
+															}
+															
+								
+								2. Use ListIterator for add/remove -->>										
+												ListIterator<String> listIterator = list.listIterator();
+												while (listIterator.hasNext()) {
+													String item = listIterator.next();
+													if (item.equals("B")) {
+														listIterator.remove(); // ✅ Safe
+													}
+												}
+								3. Use removeIf() (Java 8+) -->> list.removeIf(item -> item.equals("B"));
+
+
+When processing 100,000 records in a Spring Boot application  -->>
+				right batch size and thread pool size 
+						Batch Size		When to Use
+							500	    	Safer for memory, slower but stable
+							1000		Balanced performance
+							2000		Faster, but needs good memory and DB tuning
+							
+				Thread Pool Size: 5 to 20
+				
+					Thread Count	     When to Use
+					5					Low CPU, safe for DB-heavy tasks
+					10					Balanced for most apps
+					20					High-performance servers with good CPU/RAM
+
+
+
+Call 10 APIs in Parallel Using CompletableFuture -->>
+		
+		apiService -->>
+		public CompletableFuture<String> callApiAsync(String url) {
+				return CompletableFuture.supplyAsync(() -> restTemplate.getForObject(url, String.class));
+			}
+	
+
+		public List<String> callMultipleApis() throws Exception {
+				List<String> urls = List.of(
+					"https://api1.com",
+					"https://api2.com",
+					"https://api3.com",
+					"https://api4.com",
+					"https://api5.com",
+					"https://api6.com",
+					"https://api7.com",
+					"https://api8.com",
+					"https://api9.com",
+					"https://api10.com"
+				);
+		
+		List<CompletableFuture<String>> futures = urls.stream()
+					.map(apiService::callApiAsync)
+					.collect(Collectors.toList());		
+		
+		// Wait for all to complete
+				CompletableFuture.allOf		
+		
+		// Collect results
+		return futures.stream()
+			.map(CompletableFuture::join)
+			.collect(Collectors.toList());
+			
+			
+What is Metaspace?    -->> In Java 8, Metaspace is a memory area where the JVM stores class metadata — information like methods, fields, etc.
+							Before Java 8, this metadata was stored in a memory area called PermGen (Permanent Generation). But PermGen had many limitations:
+								Fixed size (could cause OutOfMemoryError) , it is reside in JVM heap
+						
+						So, Java 8 replaced PermGen with Metaspace, which:
+							Grows automatically as needed (up to system memory)
+							Is stored in native memory (outside the heap)
+							
+						Let’s say you have a Spring Boot app that loads many classes dynamically (e.g., via reflection or proxies).						
+							You can configure Metaspace like this: java -XX:MaxMetaspaceSize=256m -jar myapp.jar
+									This limits Metaspace to 256 MB. If your app tries to load too many classes beyond this, you’ll get:
+									    java.lang.OutOfMemoryError: Metaspace
+										
+						Monitor Metaspace -->> JVisualVM, JConsole
+						
+				If you have 16 GB RAM and other app are using 8 GB of it Then JVM might use up to 8 GB for Metaspace (if needed), but usually much less.
+				or until it get MemoryOutOfError.
+				Best Practice -->>  set a limit: like : -XX:MaxMetaspaceSize=512m
+				
+				Static content (like static variables, static methods) is stored in the Metaspace.
+				
+				Heap	-->>   Objects and instance variables
+				Stack	-->>   Method calls, local variables
+				Metaspace -->> 	Class metadata (including static variables/methods)
+
+
+
+To integrate two databases in a single Spring Boot application  -->>
+		you need to configure two separate dataSources, entity managers, and transaction managers. 	
+		
+				# H2 Database (Primary)
+				spring.datasource.url=jdbc:h2:mem:testdb
+				spring.datasource.driver-class-name=org.h2.Driver
+				spring.datasource.username=sa
+				spring.datasource.password=
+
+				# MySQL Database (Secondary)
+				mysql.datasource.url=jdbc:mysql://localhost:3306/testdb
+				mysql.datasource.username=root
+				mysql.datasource.password=yourpassword
+				mysql.datasource.driver-class-name=com.mysql.cj.jdbc.Driver			
+			
+		H2 Configuration (PrimaryDataSourceConfig.java)			
+				@Configuration
+				@EnableTransactionManagement
+				@EnableJpaRepositories(
+					basePackages = "com.example.h2repo",
+					entityManagerFactoryRef = "h2EntityManagerFactory",
+					transactionManagerRef = "h2TransactionManager"
+				)
+				public class PrimaryDataSourceConfig {
+
+					@Primary
+					@Bean
+					@ConfigurationProperties("spring.datasource")
+					public DataSource h2DataSource() {
+						return DataSourceBuilder.create().build();
+					}
+
+					@Primary
+					@Bean
+					public LocalContainerEntityManagerFactoryBean h2EntityManagerFactory(
+							EntityManagerFactoryBuilder builder) {
+						return builder
+								.dataSource(h2DataSource())
+								.packages("com.example.h2entity")
+								.persistenceUnit("h2")
+								.build();
+					}
+
+					@Primary
+					@Bean
+					public PlatformTransactionManager h2TransactionManager(
+							@Qualifier("h2EntityManagerFactory") EntityManagerFactory entityManagerFactory) {
+						return new JpaTransactionManager(entityManagerFactory);
+					}
+				}
+		MySQL Configuration (SecondaryDataSourceConfig.java)				
+				
+				@Configuration
+				@EnableTransactionManagement
+				@EnableJpaRepositories(
+					basePackages = "com.example.mysqlrepo",
+					entityManagerFactoryRef = "mysqlEntityManagerFactory",
+					transactionManagerRef = "mysqlTransactionManager"
+				)
+				public class SecondaryDataSourceConfig {
+
+					@Bean
+					@ConfigurationProperties("mysql.datasource")
+					public DataSource mysqlDataSource() {
+						return DataSourceBuilder.create().build();
+					}
+
+					@Bean
+					public LocalContainerEntityManagerFactoryBean mysqlEntityManagerFactory(
+							EntityManagerFactoryBuilder builder) {
+						return builder
+								.dataSource(mysqlDataSource())
+								.packages("com.example.mysqlentity")
+								.persistenceUnit("mysql")
+								.build();
+					}
+
+					@Bean
+					public PlatformTransactionManager mysqlTransactionManager(
+							@Qualifier("mysqlEntityManagerFactory") EntityManagerFactory entityManagerFactory) {
+						return new JpaTransactionManager(entityManagerFactory);
+					}
+				}
+		
+			H2 Entity (com.example.h2entity.User.java)   
+			H2 Repository (com.example.h2repo.UserRepository.java)
+			
+			MySQL Entity (com.example.mysqlentity.Product.java)
+			MySQL Repository (com.example.mysqlrepo.ProductRepository.java)
+		
+		Use Both Repositories in a Service  -->>			
+			
+			@Service
+			public class DataService {
+
+				@Autowired
+				private UserRepository userRepository;
+
+				@Autowired
+				private ProductRepository productRepository;
+
+				public void saveData() {
+					userRepository.save(new User(1L, "Ravi"));
+					productRepository.save(new Product(1L, "Laptop"));
+				}
+			}
+
+types of Garbage Collectors -->>
+		
+		 1. Serial GC
+				Single-threaded collector.
+				Best for small applications or single-core machines.
+				Freezes all application threads during GC (called Stop-the-World).
+					Enable with: -XX:+UseSerialGC
+				
+		2. Parallel GC (Throughput Collector)
+				Uses multiple threads for GC.
+				Good for multi-core systems and high-throughput applications.
+				Still causes Stop-the-World pauses, but faster than Serial GC.
+						-XX:+UseParallelGC
+		
+		3. G1 GC (Garbage First)
+				Default in Java 9+.
+				Breaks heap into regions and collects garbage in small chunks.
+				Balances throughput and low pause times.
+				Suitable for large heaps and responsive applications.  Pause Time	Typically < 100ms
+						-XX:+UseG1GC
+		
+		4. ZGC (Z Garbage Collector)
+				Designed for very low pause times.        Pause Time	Typically < 10ms, even with large heaps
+				Handles very large heaps (up to terabytes).
+				Mostly concurrent.
+						-XX:+UseZGC
+		
+		Pause time refers to the time during which the application is stopped so the garbage collector can clean up memory. This is called a Stop-the-World (STW) pause.
+		
+
+Unit testing focuses on testing individual components (usually methods or classes) in isolation.
+		Goal:
+				To verify that each unit of code works correctly on its own.
+		Tools:
+				JUnit
+				Mockito (for mocking dependencies)
+				
+Integration testing checks how multiple components work together — like services, repositories, databases, etc.
+		Goal:
+			To verify that integrated parts of the system work as expected when combined.
+
+	   Tools:
+			Spring Boot Test
+			Testcontainers
+			Embedded databases (like H2)
+			
+
+Test case in Groovy Spock-->>
+		class UserService {
+			String getUserById(Long id) {
+				if (id == null) {
+					throw new IllegalArgumentException("User ID cannot be null")
+				}
+				return "Ravi"
+			}
+		}
+
+
+		class UserServiceSpec extends Specification {
+
+			def "should throw exception when user ID is null"() {
+				given:
+				def service = new UserService()
+
+				when:
+				service.getUserById(null)
+
+				then:
+				def e = thrown(IllegalArgumentException)
+				e.message == "User ID cannot be null"
+			}
+		}
+
+In which scenario we use @Parimary and @Qualifier annotation -->>
+				In Spring Framework, @Primary and @Qualifier annotations are used to resolve ambiguity when multiple beans of the same type are available for dependency injection. 
+						1. @Primary Annotation -->>
+							Scenario: You have multiple beans of the same type, but one should be the default choice for injection.
+									
+									@Bean
+									@Primary
+									public Vehicle car() {
+										return new Car();
+									}
+
+									@Bean
+									public Vehicle bike() {
+										return new Bike();
+									}
+								
+								@Autowired
+								private Vehicle vehicle; // Injects Car because it's marked @Primary
+								
+						2. @Qualifier Annotation  -->>
+								Scenario: You want to inject a specific bean among multiple candidates.								
+								
+									@Bean
+									public Vehicle car() {
+										return new Car();
+									}
+
+									@Bean
+									public Vehicle bike() {
+										return new Bike();
+									}
+									
+									
+								@Autowired
+								@Qualifier("bike")
+								private Vehicle vehicle; // Injects Bike
+								
+							Explanation: @Qualifier tells Spring exactly which bean to inject by name, overriding the default behavior.
+							
+			Imagine you have an interface NotificationService and two implementations:
+				EmailNotificationService  -->> make this primary
+				SMSNotificationService
+							
+			Use Case: You mostly use email notifications, so you mark it as @Primary. Spring injects it automatically when no qualifier is specified.
+			
+			Also sometime-->>
+				You need SMS notifications in a specific class, then you use @Qualifier to explicitly choose the bean over @primary one so it override the default behavior.			
+					@Autowired
+					@Qualifier("smsNotificationService")
+					private NotificationService notificationService; // Injects SMSNotificationService
+
+Distributed Transaction -->>  To keep data consistent across multiple systems.  is a type of transaction Which
+							  ensures that all participating systems either commit or roll back changes together, maintaining data consistency and integrity 
+			Service A: create Order in Database A.
+			Service B: Update inventory in Database B.	
+			Service C: Create payment in Database C.	
+		
+		If first 2 success then only Payment happen so any one fails then roll back. If payment fails then also all roleback.
+
+
+
+Builder Design Pattern    -->> The Builder Pattern is a creational design pattern used to construct objects step by step. It helps when we have many optional parameters
+									So Instead of having a constructor with a long list of parameters, 
+									you use a builder class to set each property one by one and then build the final object.
+											
+											new User("Ravi", 40, "ravi@example.com", "India", "Lead Consultant", true);
+													In above constructor You might forget the order, or pass null for optional fields. This is hard to read and maintain.
+
+								public class User {
+									private final String name;
+									private final String email;
+									private final int age;
+
+									// Private constructor so it inforce to use of Builder only
+									private User(Builder builder) {
+										this.name = builder.name;
+										this.email = builder.email;
+										this.age = builder.age;
+									}
+
+									// Getters
+									
+									// Static Builder class
+									public static class Builder {
+										private final String name;
+										private final String email;
+										private int age = 0; // default value
+
+										// Builder constructor with mandatory fields // we can skip this cons and and set these name and email similer to age
+										public Builder(String name, String email) {
+											this.name = name;
+											this.email = email;
+										}
+
+										// Optional field setter
+										public Builder setAge(int age) {
+											this.age = age;
+											return this;
+										}
+
+										// Build method
+										public User build() {
+											return new User(this);
+										}
+									}
+								}
+			In your microservices project, you might use the Builder Pattern when:
+					Scenario:
+						You’re building a Kafka message object or a DTO that has many optional fields like:															
+							ShipmentMessage {
+								String shipmentId;
+								String origin;
+								String destination;
+								String status;
+								LocalDateTime timestamp;
+								String carrier;
+								String notes;
+							}							
+															
+									ShipmentMessage message = new ShipmentMessage.Builder()
+										.setShipmentId("SH123")
+										.setOrigin("Mumbai")
+										.setDestination("Delhi")										
+										.build();
+
+Write sample api for which is internally calling another api and first api return same response data whatever received from 2nd api call -->>
+		
+					@Autowired
+					private RestTemplate restTemplate;
+
+					@GetMapping("/api/user")
+					public ResponseEntity<String> getUserData() {
+						String externalApiUrl = "https://jsonplaceholder.typicode.com/users/1";
+
+						// Call external API
+						ResponseEntity<String> response = restTemplate.getForEntity(externalApiUrl, String.class);
+						
+						// Return the same response
+						return ResponseEntity.status(response.getStatusCode()).body(response.getBody());
+					}					
+				
+					@Configuration
+					public class AppConfig {
+
+						@Bean
+						public RestTemplate restTemplate() {
+							return new RestTemplate();
+						}
+					}
+
+how to maintain the order of messages in kafka  -->>  Kafka guarantees message order within a partition, not across the entire topic or other partition
+											Messages sent to the same partition are always read in the same order they were written..
+											
+									How to Ensure Order in Your Application
+										1. Use a Consistent Partition Key -->> All messages with the same Key go to the same partition.Kafka will maintain their order.
+										2. Don’t Use null as Key   -->> Kafka will randomly assign partitions.You lose ordering guarantees.
+										
+
+Suppose that we wrote api for saving employee record in db, which type of database engine we can prefer, either SQL or NOSQL. -->>
+		SQL (Relational DB) -->> 	      Tables with rows & columns              + Fixed schema (e.g., name, age, dept)
+		NoSQL (Document/Key-Value DB) -->> Flexible documents or key-value pairs  + Dynamic schema (can vary per record)
+		
+				For Employee Records — Use SQL   -->> Employee data is structured: name, age, department, salary, etc.
+														You may need relationships: employee → department, manager, etc. 
+														
+		When to Use NoSQL Instead of SQL  -->>
+					1. Employee data is highly dynamic
+							What it means:
+									If each employee can have different types of data, and you don’t know the structure in advance.
+										Example: -->>
+											Employee A has: name, age, skills
+											Employee B has: name, hobbies, certifications
+											Employee C has: name, emergency contacts, languages
+										
+										In SQL, you’d need to keep changing the table structure.
+										In NoSQL (like MongoDB), you can store each employee as a flexible document with different fields.
+
+					2. You don’t need relationships  -->>
+									If you don’t need to link employees to other tables like departments, managers, or projects.
+									
+					3. ✅ You want scalability over consistency -->> 
+							What it means:
+									If your system needs to handle huge amounts of data quickly, and some delay or inconsistency is okay.
+									Example: -->>
+											You’re saving millions of employee logs per second.
+											It’s okay if one log is delayed or slightly out of sync.
+								
+								NoSQL databases like Cassandra or MongoDB are built for high speed and scale, even if they sacrifice strict consistency.
+								
+
+Why Retry?		-->> Imagine your microservice calls another service to: Save data , Fetch user info, Send a notification
+					 If that service fails temporarily, you don’t want to fail immediately — you want to retry a few times before giving up.
+
+		How to Implement Retry in Spring Boot  - 
+				Option 1: Use @Retryable from Spring Retry  -->> 
+					
+						1- Dependency -->>
+							<artifactId>spring-retry</artifactId>-->> spring-retry is a separate module that provides retry logic using annotations like @Retryable and @Recover.
+							
+							<artifactId>spring-boot-starter-aop</artifactId> -->> Spring Retry uses AOP proxies to intercept method calls and apply retry logic. 
+																				  Without AOP: The @Retryable annotation won’t be triggered
+																				  Your method will behave like a normal method — no retries.
+																				  
+						2 - @EnableRetry In your main class or a config class: @EnableRetry
+						
+						3 - Example: 
+						
+								private int attempt = 1;			
+								
+								@Retryable(value = RuntimeException.class, maxAttempts = 3, backoff = @Backoff(delay = 2000))
+								public void callExternalApi() {
+									System.out.println("Attempt #" + attempt++);
+									throw new RuntimeException("External service failed");
+								}								
+								
+								@Recover
+								public String fallback(RuntimeException e) {
+									System.out.println("Fallback method called due to: " + e.getMessage());
+									return "Default response from fallback";
+								}
+								
+							//This will:
+										maxAttempts - Retry 3 times
+										backoff -     Wait 2 seconds between retries   
+										Then calls the @Recover method and returns "Default response from fallback".
+											
+											Attempt #1  thorw ex (but not catch so not seen)
+											Attempt #2  thorw ex(but not catch so not seen)
+											Attempt #3  thow ex(but not catch so not seen)
+											Fallback method called due to: External service failed
+					
+							@Retryable & @Recover -->>
+								Both must be in the same bean / class as the @Retryable method. -->> due to AOP it intercept method calls and apply retry logic
+								Both must have the same return type 
+								It must accept the exception type as the first parameter. -->> value = RuntimeException.class
+
+					
+				
+				
+				Option 2: Use Resilience4j (More Advanced)				
+						1- Dependencies 
+								<!-- Resilience4j Retry -->
+								<dependency>
+									<groupId>io.github.resilience4j</groupId>
+									<artifactId>resilience4j-spring-boot3</artifactId>
+								</dependency>
+								
+						 2. application.yml -->>								
+								resilience4j.retry:
+								  instances:
+									externalApiRetry:       //  name of retry, this will use in method where to call retry
+									  max-attempts: 3
+									  wait-duration: 2s
+									  retry-exceptions:    // when these ex occues then retry executed.
+										- java.io.IOException
+										- java.lang.RuntimeException
+										
+						3. 
+							private int attempt = 1;
+
+							@Retry(name = "externalApiRetry", fallbackMethod = "fallback")
+							public String callExternalApi() {
+								System.out.println("Attempt #" + attempt++);
+								throw new RuntimeException("Simulated API failure");
+							}
+
+							// Fallback method must match return type with retry() and accept the exception
+							public String fallback(RuntimeException e) {
+								System.out.println("Fallback called due to: " + e.getMessage());
+								return "Default fallback response";
+							}
+							
+			Resilience4j's Circuit Breaker pattern, which includes the states: Closed, Open, and Half-Open. 
+							1. Closed State (Normal)
+								All requests go through and successfully.
+								If failures are below threshold, it stays closed.
+								
+							2. Open State (Too Many Failures)
+								If failures cross a threshold (e.g., 50% of last 10 calls failed),
+								Circuit opens → no more calls are made for a while.
+								This avoids overloading a failing service.
+								
+							3. Half-Open State (Test Mode)
+								After a wait time (e.g., 10 seconds), circuit goes to half-open.
+								Allows limited test calls.
+								If they succeed → circuit closes (back to normal).
+								If they fail → circuit opens again.
+					
+			Retry and CircuitBreaker	-->> 				
+			
+					  resilience4j.retry:
+						instances:
+						  myRetry:
+							max-attempts: 3
+							wait-duration: 2s
+
+					  resilience4j.circuitbreaker:
+						instances:
+						  myCircuitBreaker:
+							slidingWindowSize: 5
+							failureRateThreshold: 50
+							waitDurationInOpenState: 10s
+							permittedNumberOfCallsInHalfOpenState: 2
+							
+			
+					@CircuitBreaker(name = "myCircuitBreaker", fallbackMethod = "fallback")
+					@Retry(name = "myRetry")
+					public String callExternalApi() {
+						System.out.println("Attempt #" + attempt++);
+						throw new RuntimeException("Simulated failure");
+					}
+
+					public String fallback(Throwable t) {
+						return "Fallback response due to: " + t.getMessage();
+					}
+					
+					What Happens -->>
+						Tries the external API.
+						If it fails → retries 3 times.
+						If failures continue → circuit opens.
+							While circuit is open → fallback is called.
+						After wait time → circuit goes half-open to test.
+						If test passes → circuit closes again.
+					
+					Summary
+						Use Retry for short-term issues.
+						Use Circuit Breaker for long-term failures.
+						Use Fallback to keep your service responsive.
+
+			1. slidingWindowSize: 5
+					"Look at the last 5 calls to decide if the service is failing."					
+					It uses this to calculate the failure rate.
+					Example:
+					  If 3 out of the last 5 calls failed → failure rate = 60%
+			
+			2. failureRateThreshold: 50
+					If failure rate exceeds 50% (e.g., 3 out of 5), the circuit goes OPEN.
+					While open, no calls are allowed — they fail immediately.
+					
+			3. waitDurationInOpenState: 10s				
+					Once the circuit is OPEN, it waits for 10 seconds.
+					After that, it moves to HALF-OPEN to test if the service is back.
+					
+			4. permittedNumberOfCallsInHalfOpenState: 2
+					Resilience4j allows 2 test calls, In HALF-OPEN stage.
+					If both succeed → circuit goes back to CLOSED (normal).
+					If any fail → circuit goes back to OPEN again.
+					
+		Retry will try the call 3 times.
+		Circuit Breaker will track those calls.
+		If failure rate is high → circuit opens → future calls are blocked.
+
+
+HTTPS 				-->>  stands for HyperText Transfer Protocol Secure. It’s the secure version of HTTP, 
+						  using SSL/TLS encryption to protect data exchanged between your browser and the server.
+							
+							What Happens Behind the Scenes:
+								Client (browser) connects to server via HTTPS.
+								Server sends its SSL certificate to prove its identity.
+								Client verifies the certificate using trusted Certificate Authorities (CAs).
+								A secure encrypted channel is established using TLS.
+								All data exchanged is encrypted, preventing eavesdropping or tampering.								
+						
+							
+				Code Redirect HTTP to HTTPS -->>when user hit http(http://localhost:8080) instead of https(https://localhost:8443) it redirect this to https(https://localhost:8443),
+												if we dont have this class then we get -> This site can’t be reached
+					
+						@Configuration
+						public class HttpToHttpsRedirectConfig {
+
+							@Bean
+							public ServletWebServerFactory servletContainer() {
+								TomcatServletWebServerFactory tomcat = new TomcatServletWebServerFactory();
+								tomcat.addAdditionalTomcatConnectors(httpConnector());
+								return tomcat;
+							}
+
+							private Connector httpConnector() {
+								Connector connector = new Connector(TomcatServletWebServerFactory.DEFAULT_PROTOCOL);
+								connector.setScheme("http");
+								connector.setPort(8080); // HTTP port
+								connector.setSecure(false);
+								connector.setRedirectPort(8443); // HTTPS port
+								return connector;
+							}
+						}
+						
+				Create a Self-Signed SSL Certificate -->> use the keytool utility (comes with Java) to generate a .p12 certificate.
+						
+						keytool -genkeypair \
+						  -alias tomcat \
+						  -keyalg RSA \
+						  -keysize 2048 \
+						  -storetype PKCS12 \
+						  -keystore keystore.p12 \
+						  -storepass yourpassword \
+						  -validity 365 \
+						  -dname "CN=localhost, OU=Dev, O=MyCompany, L=City, S=State, C=IN"
+						  
+					What This Does:
+							Creates a .p12 file named keystore.p12
+							Uses RSA encryption with 2048-bit key
+							Valid for 365 days
+							Password is yourpassword
+							Distinguished name (DN) is for localhost
+							
+				Add the Certificate to Your Spring Boot Project -->>  Configure Spring Boot to Use HTTPS
+				
+					server:
+					  port: 8443
+					  ssl:
+						key-store: classpath:keystore.p12
+						key-store-password: yourpassword
+						key-store-type: PKCS12
+						key-alias: tomcat
+
+				Test : -->> https://localhost:8443
+
+		
+		1. Browser Initiates Connection
+					The browser sees https:// and knows it must use TLS (Transport Layer Security).
+					It connects to localhost on port 8443.
+					
+		2. TLS Handshake Begins
+				Spring Boot responds with the SSL certificate (keystore.p12).
+				Browser verifies it (or warns if it's self-signed). -->> Session Key Exchange -->> This key is used to encrypt all future communication.
+				Secure connection is established.
+				Your app responds normally.
+				
+		Spring Boot Handles the Request
+			The server receives the encrypted request.
+			It decrypts it using the session key.
+			Routes it to the appropriate controller/method in your Spring Boot app.
+			
+		Response Sent Back Securely
+			Spring Boot generates a response (e.g., HTML, JSON).
+			It encrypts the response using the same session key.
+			Browser receives and decrypts it.
+
+
+
+
